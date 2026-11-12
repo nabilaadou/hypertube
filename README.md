@@ -2,12 +2,23 @@
 
 The Spring Boot API lives in `server/`. The Next.js app lives in `client/`.
 
-## Prerequisites
+## Run with Docker
 
-- JDK 21 or newer and Maven 3.9 or newer
-- Node.js 24 or newer and npm
+Install Docker with Compose 2.24 or newer, then run from the repository root.
 
-## Run locally
+```sh
+docker compose up --build --watch
+```
+
+Open `http://localhost:3000`. The API is available at `http://localhost:8080/api/health`. Compose reloads Next.js when you edit the frontend and restarts Spring Boot when you edit backend source files. Changes to dependency manifests rebuild the corresponding image.
+
+Compose reads `client/.env` if it exists and sets `BACKEND_URL` to `http://server:8080` for the connection between containers. After editing `client/.env`, restart the Compose command to apply the changes. If a host port is busy, set `HYPERTUBE_CLIENT_PORT` or `HYPERTUBE_SERVER_PORT` before starting Compose. For example, `HYPERTUBE_CLIENT_PORT=3100 docker compose up --build --watch` serves the frontend at `http://localhost:3100`.
+
+Press Ctrl+C to stop the services, then run `docker compose down` to remove the containers and network.
+
+## Run without Docker
+
+Install JDK 21 or newer, Maven 3.9 or newer, Node.js 24 or newer, and npm.
 
 From the repository root, copy the local configuration template.
 

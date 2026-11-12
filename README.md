@@ -4,17 +4,25 @@ The Spring Boot API lives in `server/`. The Next.js app lives in `client/`.
 
 ## Run with Docker
 
-Install Docker with Compose 2.24 or newer, then run from the repository root.
+Install Docker with Compose 2.24 or newer and Make. From the repository root, copy the PostgreSQL configuration template.
 
 ```sh
-docker compose up --build --watch
+cp .env.example .env
+```
+
+Set `POSTGRES_PASSWORD` to a local password in `.env`, then start the development stack.
+
+```sh
+make up
 ```
 
 Open `http://localhost:3000`. The API is available at `http://localhost:8080/api/health`. Compose reloads Next.js when you edit the frontend and restarts Spring Boot when you edit backend source files. Changes to dependency manifests rebuild the corresponding image.
 
-Compose reads `client/.env` if it exists and sets `BACKEND_URL` to `http://server:8080` for the connection between containers. After editing `client/.env`, restart the Compose command to apply the changes. If a host port is busy, set `HYPERTUBE_CLIENT_PORT` or `HYPERTUBE_SERVER_PORT` before starting Compose. For example, `HYPERTUBE_CLIENT_PORT=3100 docker compose up --build --watch` serves the frontend at `http://localhost:3100`.
+PostgreSQL is available at `localhost:5432` from the host and `postgres:5432` from other services. The database, user, and password come from the root `.env` when the database volume is first initialized.
 
-Press Ctrl+C to stop the services, then run `docker compose down` to remove the containers and network.
+Compose reads `client/.env` if it exists and sets `BACKEND_URL` to `http://server:8080` for the connection between containers. Restart `make up` to apply changes to `client/.env`. If a host port is busy, set `HYPERTUBE_CLIENT_PORT`, `HYPERTUBE_SERVER_PORT`, or `HYPERTUBE_POSTGRES_PORT` before starting Compose. For example, `HYPERTUBE_CLIENT_PORT=3100 make up` serves the frontend at `http://localhost:3100`.
+
+Press Ctrl+C to stop the services. Run `make down` to remove the containers and network while keeping PostgreSQL data. Run `make clean` to also delete the database volume, orphaned project containers, and images built for Hypertube.
 
 ## Run without Docker
 

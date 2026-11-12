@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+
+/client/.next/
+/client/next-env.d.ts
+/client/node_modules/
+/client/*.tsbuildinfo
+/server/target/

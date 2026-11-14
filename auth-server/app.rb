@@ -29,7 +29,7 @@ class AuthServer < Sinatra::Base
 
   get "/auth/:provider/callback" do
     auth = request.env["omniauth.auth"]
-    halt 404 unless auth && settings.configured_providers.include?(params[:provider])
+    halt 404 unless auth && settings.providers.dig(params[:provider], :enabled)
 
     proof = SecureRandom.hex(32)
     identity = {

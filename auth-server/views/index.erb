@@ -15,9 +15,10 @@
         <p class="notice" role="alert"><%= @failure == "cancelled" ? "Sign-in was cancelled. Choose a provider to try again." : "Sign-in failed. Try again and check your provider credentials and callback URL if it persists." %></p>
       <% end %>
 
-      <% settings.providers.each do |provider, label| %>
+      <% settings.providers.each do |provider, details| %>
+        <% label = details.fetch(:label) %>
         <section class="provider">
-          <% if settings.configured_providers.include?(provider) %>
+          <% if details.fetch(:enabled) %>
             <form action="/auth/<%= h(provider) %>" method="post">
               <input type="hidden" name="authenticity_token" value="<%= h(@csrf) %>">
               <button type="submit">Continue with <%= h(label) %></button>

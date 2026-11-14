@@ -34,7 +34,7 @@ Inspect the live reference before describing an animation as an exact match. Tre
 - Use GSAP as the main animation controller. Use ScrollTrigger for pinned sections, scroll progress, and timeline movement where appropriate.
 - Use Lenis to smooth the page's native scrolling. Synchronize its scroll events and animation frame loop with GSAP and ScrollTrigger using the current official integration guide. Create and destroy the Lenis instance with the client experience lifecycle.
 - Use Anime.js only when a specific effect benefits from it, such as an isolated text or decorative animation. Give each animated property one owner so GSAP and Anime.js cannot overwrite each other.
-- Use Three.js when the approved theater experience requires real-time geometry, lighting, perspective, or camera movement. Decide whether a React integration is useful after inspecting the client. Adding an integration library is an implementation choice to explain.
+- Use Three.js to render the approved retextured theater model as a real-time 3D scene. Preserve its black and antique-gold materials. Decide whether a React integration is useful after inspecting the client. Adding an integration library is an implementation choice to explain.
 - Keep browser-dependent animation and rendering inside suitable client components. Keep static content and data outside the animation loop where possible.
 
 The existing client already declares Next.js, React, and TypeScript. The inspected package manifest does not yet declare Tailwind CSS, GSAP, Anime.js, or Three.js. Check the current manifest again when implementation starts.
@@ -51,7 +51,14 @@ The current local preview uses these files.
 - `design-assets/reel-poster.jpg` supplies the initial video still.
 - `design-assets/theater.png` supplies the rendered theater image.
 
-The current theater preview uses an image rendered from a 3D scene. A real-time Three.js theater requires a separate implementation and review. Locate the provided model and the previously textured scene before creating new materials or geometry. Earlier source folders included `Private_home_cinema_-_Baking`; paths may have changed as assets were reorganized.
+The current HTML preview uses an image rendered from the retextured theater. The user has approved using that same retextured model in the real-time Three.js implementation. Import the existing GLB and preserve its geometry and black and antique-gold materials. Use the rendered image as a loading or rendering fallback.
+
+The approved files are currently available locally at these paths.
+
+- Runtime model — `/Users/sultaaaane/.codex/visualizations/2026/11/13/01a1d482-602e-7332-80f8-b1772c03fc13/private-home-cinema-textured.glb`
+- Editable Blender scene — `/Users/sultaaaane/.codex/visualizations/2026/11/13/01a1d482-602e-7332-80f8-b1772c03fc13/private-home-cinema-textured.blend`
+
+Use the GLB for the browser scene and the Blender file when an approved model adjustment is needed. Copy the required runtime asset into the agreed ignored local asset location during implementation, then reference its served URL. These machine-specific paths identify the source files and belong in the setup instructions. Keep the large model and Blender files out of Git commits.
 
 The original theater's baked textures were unavailable during the earlier work. Inspect the actual model and materials before promising that its source appearance can be reproduced exactly. Preserve the agreed black and antique-gold treatment.
 
@@ -79,14 +86,14 @@ Use these sources to find effects, components, and assets that support the appro
 3. Inspect JJettas on desktop through the agreed stopping point.
 4. Record the opening trigger, reveal duration, easing, cinema hold, poster position, and timeline entry as observed behavior.
 5. Locate the user's edit, theater model, rendered theater, and draft posters.
-6. Ask whether the first implementation should use the approved theater render or a real-time Three.js scene.
+6. Inspect the approved retextured GLB, its materials, and its screen geometry to prepare the Three.js integration.
 7. Confirm what an upward scroll at the beginning of the cinema should do, including whether it replays the fullscreen opening.
 
 ### Acceptance criteria
 
 - [ ] The active files and assets are located.
 - [ ] The section order and interaction behavior are written down.
-- [ ] The theater rendering approach is agreed with the user.
+- [ ] The approved retextured GLB is located and its screen geometry and materials are inspected.
 - [ ] Unresolved behavior is explicitly identified.
 - [ ] The user has authorized the next implementation task.
 
@@ -97,7 +104,7 @@ Use these sources to find effects, components, and assets that support the appro
 1. Configure Tailwind CSS using an approach compatible with the existing client.
 2. Add GSAP and the React integration needed by the chosen implementation.
 3. Add Lenis and plan one animation-frame loop shared with GSAP and ScrollTrigger.
-4. Add Anime.js or Three.js when an approved task requires them.
+4. Add Three.js for the theater scene. Add Anime.js when an approved effect requires it.
 5. Define shared colors, typography, spacing, and responsive values using the prototype as the visual starting point.
 6. Create a small movie-data representation containing title, poster, year, award label, and trailer reference.
 7. Establish local media URLs and a visible fallback for missing files.
@@ -163,8 +170,8 @@ The current prototype uses an approximately 850 ms reveal and a brief 180 ms inp
 ### Steps
 
 1. Present the provided theater with the agreed black and antique-gold finish.
-2. If real-time 3D is approved, import and inspect the model, then tune materials, lighting, screen placement, and camera framing.
-3. If real-time 3D is used, connect the playing video to the screen without restarting playback during the reveal.
+2. Import `private-home-cinema-textured.glb` into Three.js. Preserve the existing materials and tune lighting, screen placement, and camera framing to match the approved render.
+3. Map the playing movie edit onto the model's screen with a video texture. Match its orientation and crop, and preserve playback through the fullscreen-to-screen reveal.
 4. Position the featured movie poster on the left without covering essential screen content.
 5. Keep the theater composition stable after the opening finishes.
 6. Reserve a separate stretch of scrolling before the cinema exit begins.
@@ -172,6 +179,8 @@ The current prototype uses an approximately 850 ms reveal and a brief 180 ms inp
 
 ### Acceptance criteria
 
+- [ ] The scene renders the approved retextured GLB with its black and antique-gold finish.
+- [ ] The movie edit plays on the 3D screen with the correct crop and orientation.
 - [ ] The theater has time to remain fully visible before the timeline appears.
 - [ ] The video stays aligned with the screen throughout the hold.
 - [ ] The featured poster stays visible on the left.
@@ -282,4 +291,4 @@ Complete the desktop composition first. Ask the user to review the mobile adapta
 
 ## Start the next working session
 
-Read this document and the current repository. Begin with Task 1. Ask focused questions about the theater rendering approach and unresolved scroll behavior. Present the findings, then wait for explicit coding permission. Complete only the authorized task and present its result before advancing.
+Read this document and the current repository. Begin with Task 1. Use the approved retextured theater model in Three.js. Ask focused questions about unresolved scroll behavior and model framing. Present the findings, then wait for explicit coding permission. Complete only the authorized task and present its result before advancing.

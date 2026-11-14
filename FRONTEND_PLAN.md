@@ -55,10 +55,10 @@ The current HTML preview uses an image rendered from the retextured theater. The
 
 The approved files are currently available locally at these paths.
 
-- Runtime model — `/Users/sultaaaane/.codex/visualizations/2026/11/13/01a1d482-602e-7332-80f8-b1772c03fc13/private-home-cinema-textured.glb`
+- Runtime model — `models/private-home-cinema-textured.glb`, tracked in the repository with the user's approval.
 - Editable Blender scene — `/Users/sultaaaane/.codex/visualizations/2026/11/13/01a1d482-602e-7332-80f8-b1772c03fc13/private-home-cinema-textured.blend`
 
-Use the GLB for the browser scene and the Blender file when an approved model adjustment is needed. Copy the required runtime asset into the agreed ignored local asset location during implementation, then reference its served URL. These machine-specific paths identify the source files and belong in the setup instructions. Keep the large model and Blender files out of Git commits.
+Use the GLB for the browser scene and the Blender file when an approved model adjustment is needed. Run `npm run prepare:media` in `client/` to copy the tracked runtime GLB into the ignored `client/public/models/` folder. Load it from `/models/private-home-cinema-textured.glb`. Keep the Blender source and large media files local. The user explicitly approved committing this 2.5 MB runtime GLB.
 
 The original theater's baked textures were unavailable during the earlier work. Inspect the actual model and materials before promising that its source appearance can be reproduced exactly. Preserve the agreed black and antique-gold treatment.
 
@@ -87,7 +87,7 @@ Use these sources to find effects, components, and assets that support the appro
 4. Record the opening trigger, reveal duration, easing, cinema hold, poster position, and timeline entry as observed behavior.
 5. Locate the user's edit, theater model, rendered theater, and draft posters.
 6. Inspect the approved retextured GLB, its materials, and its screen geometry to prepare the Three.js integration.
-7. Confirm what an upward scroll at the beginning of the cinema should do, including whether it replays the fullscreen opening.
+7. Implement the confirmed return behavior in the reveal task. Scrolling back to the top returns the cinema screen to the fullscreen edit.
 
 ### Acceptance criteria
 
@@ -98,6 +98,8 @@ Use these sources to find effects, components, and assets that support the appro
 - [ ] The user has authorized the next implementation task.
 
 ## Task 2 — Prepare styles, dependencies, and media references
+
+Implementation complete on `cinematic-landing-page`. Lint and production build passed. Browser checks confirmed video playback and the missing-video fallback. Model and image URLs returned successfully. User review is pending before Task 3.
 
 ### Steps
 
@@ -112,12 +114,12 @@ Use these sources to find effects, components, and assets that support the appro
 
 ### Acceptance criteria
 
-- [ ] The existing Next.js client runs with the selected styling setup.
-- [ ] Shared styles reflect the agreed palette.
-- [ ] Lenis and ScrollTrigger use one synchronized animation loop, with no competing scroll smoothing.
-- [ ] The user's video and theater media load through the selected local setup.
-- [ ] Missing media produces a usable fallback.
-- [ ] The proposed commit contains only intentional source and configuration changes.
+- [x] The existing Next.js client runs with the selected styling setup.
+- [x] Shared styles reflect the agreed palette.
+- [x] Lenis and ScrollTrigger use one synchronized animation loop, with no competing scroll smoothing.
+- [x] The user's video and theater media load through the selected local setup.
+- [x] Missing media produces a usable fallback.
+- [x] The proposed commit contains only intentional source and configuration changes.
 
 ## Task 3 — Build the fullscreen opening edit
 

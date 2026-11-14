@@ -48,10 +48,19 @@ Start Next.js in a second terminal.
 ```sh
 cd client
 npm ci
+npm run prepare:media
 npm run dev
 ```
 
 Open `http://localhost:3000`. The home page reports whether it can reach the API at `GET /api/health`. If `BACKEND_URL` is missing or invalid, the page tells you how to configure it. Restart Next.js after changing `client/.env`.
+
+## Prepare the landing page media
+
+Run `npm run prepare:media` from `client/` before starting local development or building the Docker client image. It copies the tracked theater GLB from `models/` to `client/public/models/`. It also copies `reel.mp4`, `reel-poster.jpg`, and `theater.png` from the local `design-assets/` folder to `client/public/media/` when available.
+
+The public copies are ignored by Git. A fresh clone includes the theater model. Supply the movie edit and preview images locally in `design-assets/`, then rerun the command. Missing source files produce a message and leave any existing public copy available. The video preview displays an unavailable message when the edit cannot load.
+
+The served model URL is `/models/private-home-cinema-textured.glb`. The edit and image URLs begin with `/media/`. `client/app/data/movies.ts` contains those paths and the draft movie entries. The current frontend phase provides shared styles, a basic media preview, and a Lenis instance synchronized with GSAP. The cinematic section transitions follow in the next tasks.
 
 ## Verify changes
 

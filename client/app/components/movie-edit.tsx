@@ -1,8 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { cinemaMedia } from "../data/movies";
+import { cinemaMedia, draftMovies } from "../data/movies";
 import { useCinemaReveal } from "./use-cinema-reveal";
+
+const CinemaScene = dynamic(() => import("./cinema-scene"), { ssr: false });
+
+const featured = draftMovies[0];
 
 type Playback = "paused" | "playing" | "unavailable";
 
@@ -41,79 +47,98 @@ export function MovieEdit() {
   }
 
   return (
-    <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} className="cinema-stage relative isolate h-svh overflow-hidden bg-theater text-paper">
-      <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
-      <div className="cinema-screen">
-        <video
-          ref={videoRef}
-          className="absolute inset-0 size-full object-cover object-center"
-          src={cinemaMedia.edit}
-          poster={cinemaMedia.poster}
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          aria-label="Hypertube movie edit"
-          onPlay={() => setPlayback("playing")}
-          onPause={() => setPlayback((state) => state === "unavailable" ? state : "paused")}
-          onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
-          onError={() => setPlayback("unavailable")}
-        />
+    <div className="min-h-[200svh]">
+      <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
+        <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
+        <div className="cinema-screen">
+          <video
+            ref={videoRef}
+            className="absolute inset-0 size-full object-cover object-center"
+            src={cinemaMedia.edit}
+            poster={cinemaMedia.poster}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-label="Hypertube movie edit"
+            onPlay={() => setPlayback("playing")}
+            onPause={() => setPlayback((state) => state === "unavailable" ? state : "paused")}
+            onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
+            onError={() => setPlayback("unavailable")}
+          />
 
-        {playback === "unavailable" && (
-          <p role="status" className="absolute inset-0 grid place-items-center bg-theater/80 px-page text-center">
-            The movie edit is unavailable. Please try again later.
-          </p>
+          {playback === "unavailable" && (
+            <p role="status" className="absolute inset-0 grid place-items-center bg-theater/80 px-page text-center">
+              The movie edit is unavailable. Please try again later.
+            </p>
+          )}
+        </div>
+        <CinemaScene videoRef={videoRef} active={phase === "cinema" && playback !== "unavailable"} />
+        <div aria-hidden="true" className="cinema-shade pointer-events-none absolute inset-0 bg-linear-to-b from-black/75 via-transparent to-black/80" />
+
+        <header className="absolute inset-x-0 top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center px-page py-6 md:py-8">
+          <svg aria-hidden="true" viewBox="0 0 40 40" fill="none" className="size-8">
+            <path d="M6 6v28m28-28v28M6 12l14 9 14-9M6 22l14 9 14-9" stroke="currentColor" strokeWidth="3.5" strokeLinecap="square" />
+          </svg>
+          <h1 id="opening-title" className="font-display text-3xl leading-none font-black tracking-wide uppercase md:text-4xl">Hypertube</h1>
+          <details className="relative justify-self-end" onKeyDown={(event) => {
+            if (event.key === "Escape" && event.currentTarget.open) {
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector("summary")?.focus();
+            }
+          }}>
+            <summary aria-label="Navigation" className="grid size-11 cursor-pointer list-none place-content-center gap-1.5 rounded-full bg-black/60 [&::-webkit-details-marker]:hidden">
+              <span aria-hidden="true" className="h-px w-5 -skew-x-30 bg-current" />
+              <span aria-hidden="true" className="ml-1 h-px w-5 -skew-x-30 bg-current" />
+            </summary>
+            <nav aria-label="Landing page" className="absolute top-full right-0 mt-3 min-w-44 rounded-card bg-ink p-2 shadow-lg">
+              <a className="block rounded px-4 py-3 hover:bg-quote" href="#opening">Opening edit</a>
+              <a className="block rounded px-4 py-3 hover:bg-quote" href="#api-status">API status</a>
+            </nav>
+          </details>
+        </header>
+
+        {phase === "cinema" && (
+          <figure className="absolute bottom-[16vh] left-page grid w-[clamp(5rem,13vw,11rem)] gap-2 drop-shadow-lg">
+            <Image
+              src={featured.poster}
+              alt=""
+              width={176}
+              height={264}
+              unoptimized
+              className="aspect-[2/3] h-auto w-full rounded-card border border-gold bg-ink object-cover"
+            />
+            <figcaption className="font-mono text-[clamp(0.625rem,1.1vw,0.875rem)] text-paper">
+              {featured.title}
+            </figcaption>
+          </figure>
         )}
-      </div>
-      <div aria-hidden="true" className="cinema-shade pointer-events-none absolute inset-0 bg-linear-to-b from-black/75 via-transparent to-black/80" />
 
-      <header className="absolute inset-x-0 top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center px-page py-6 md:py-8">
-        <svg aria-hidden="true" viewBox="0 0 40 40" fill="none" className="size-8">
-          <path d="M6 6v28m28-28v28M6 12l14 9 14-9M6 22l14 9 14-9" stroke="currentColor" strokeWidth="3.5" strokeLinecap="square" />
-        </svg>
-        <h1 id="opening-title" className="font-display text-3xl leading-none font-black tracking-wide uppercase md:text-4xl">Hypertube</h1>
-        <details className="relative justify-self-end" onKeyDown={(event) => {
-          if (event.key === "Escape" && event.currentTarget.open) {
-            event.currentTarget.open = false;
-            event.currentTarget.querySelector("summary")?.focus();
-          }
-        }}>
-          <summary aria-label="Navigation" className="grid size-11 cursor-pointer list-none place-content-center gap-1.5 rounded-full bg-black/60 [&::-webkit-details-marker]:hidden">
-            <span aria-hidden="true" className="h-px w-5 -skew-x-30 bg-current" />
-            <span aria-hidden="true" className="ml-1 h-px w-5 -skew-x-30 bg-current" />
-          </summary>
-          <nav aria-label="Landing page" className="absolute top-full right-0 mt-3 min-w-44 rounded-card bg-ink p-2 shadow-lg">
-            <a className="block rounded px-4 py-3 hover:bg-quote" href="#opening">Opening edit</a>
-            <a className="block rounded px-4 py-3 hover:bg-quote" href="#api-status">API status</a>
-          </nav>
-        </details>
-      </header>
-
-      <div className="absolute inset-x-0 bottom-0 grid grid-cols-[1fr_auto_1fr] items-end gap-2 px-page pb-6 md:pb-8">
-        <div>
-          {playback !== "unavailable" && (
-            <button type="button" onClick={togglePlayback} className={control}>
-              {playback === "playing" ? "Pause" : "Play"}
-            </button>
-          )}
+        <div className="absolute inset-x-0 bottom-0 grid grid-cols-[1fr_auto_1fr] items-end gap-2 px-page pb-6 md:pb-8">
+          <div>
+            {playback !== "unavailable" && (
+              <button type="button" onClick={togglePlayback} className={control}>
+                {playback === "playing" ? "Pause" : "Play"}
+              </button>
+            )}
+          </div>
+          <div>
+            {phase !== "cinema" && (
+              <button type="button" aria-disabled={phase !== "fullscreen"} onClick={reveal} className={`${control} cinema-cue gap-1 py-2`}>
+                Scroll
+                <span aria-hidden="true" className="size-2 rotate-45 border-r border-b" />
+              </button>
+            )}
+          </div>
+          <div className="justify-self-end">
+            {playback !== "unavailable" && (
+              <button type="button" aria-label="Sound" aria-pressed={!muted} onClick={toggleSound} className={control}>
+                {muted ? "Sound off" : "Sound on"}
+              </button>
+            )}
+          </div>
         </div>
-        <div>
-          {phase !== "cinema" && (
-            <button type="button" aria-disabled={phase !== "fullscreen"} onClick={reveal} className={`${control} cinema-cue gap-1 py-2`}>
-              Scroll
-              <span aria-hidden="true" className="size-2 rotate-45 border-r border-b" />
-            </button>
-          )}
-        </div>
-        <div className="justify-self-end">
-          {playback !== "unavailable" && (
-            <button type="button" aria-label="Sound" aria-pressed={!muted} onClick={toggleSound} className={control}>
-              {muted ? "Sound off" : "Sound on"}
-            </button>
-          )}
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }

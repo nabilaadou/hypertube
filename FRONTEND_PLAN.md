@@ -183,12 +183,12 @@ The current prototype uses an approximately 850 ms reveal and a brief 180 ms inp
 
 ### Acceptance criteria
 
-- [ ] The scene renders the approved retextured GLB with its black and antique-gold finish.
-- [ ] The movie edit plays on the 3D screen with the correct crop and orientation.
-- [ ] The theater has time to remain fully visible before the timeline appears.
-- [ ] The video stays aligned with the screen throughout the hold.
-- [ ] The featured poster stays visible on the left.
-- [ ] The first scroll gesture cannot consume the cinema hold accidentally.
+- [x] The scene renders the approved retextured GLB with its black and antique-gold finish.
+- [x] The movie edit plays on the 3D screen with the correct crop and orientation.
+- [x] The theater has time to remain fully visible before the timeline appears.
+- [x] The video stays aligned with the screen throughout the hold.
+- [x] The featured poster stays visible on the left.
+- [x] The first scroll gesture cannot consume the cinema hold accidentally.
 - [ ] The user approves the hold duration and theater framing.
 
 ## Task 6 — Carry the left poster into the movie timeline

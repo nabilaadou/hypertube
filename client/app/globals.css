@@ -65,3 +65,19 @@
 .cinema-cue {
   opacity: calc(1 - var(--reveal));
 }
+
+.cinema-canvas {
+  position: absolute;
+  inset: 0;
+  width: min(100cqw, 160cqh);
+  height: min(100cqh, 62.5cqw);
+  margin: auto;
+  pointer-events: none;
+  transition: opacity 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cinema-canvas {
+    transition: none;
+  }
+}

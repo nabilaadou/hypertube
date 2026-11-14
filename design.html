@@ -1,0 +1,326 @@
+<!doctype html><html lang="en"><head><link rel="stylesheet" data-doop-webfonts href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&amp;family=Space+Grotesk:wght@300..700&amp;family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&amp;display=swap"><style data-doop-tokens>:root{--color-ink:#111014;--color-paper:#f1ede4;--color-muted:#aaa49e;--color-blue:#39b8cf;--color-panel:#242127;--color-theater:#100d15;--color-quote:#201729;--color-timeline:#493166;--color-poster-edge:#b38948;--radius-card:8px;--spacing-page:48px;--font-display:Space Grotesk, sans-serif;--font-body:DM Sans, sans-serif;--font-mono:IBM Plex Mono, monospace;--text-body:15px;--text-label:11px}</style><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hypertube</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&display=swap"><style>
+*{box-sizing:border-box;margin:0}html,body{width:100%;height:100%;overflow:hidden}body{background:var(--color-theater);color:var(--color-paper);font:var(--text-body)/1.5 var(--font-body)}button,a{font:inherit;color:inherit}button{cursor:pointer;border:0;background:none;padding:0}a{text-underline-offset:4px}button:focus-visible,a:focus-visible,.journey:focus-visible{outline:2px solid var(--color-blue);outline-offset:6px}
+.journey{width:100%;height:100%;overflow:auto;overscroll-behavior:contain;scrollbar-width:none}.journey::-webkit-scrollbar{display:none}.runway{height:680vh}.stage{position:sticky;top:0;width:100%;height:100vh;overflow:hidden;isolation:isolate;background:var(--color-quote)}
+.stage>section{position:absolute;inset:0;overflow:hidden}.grain::after{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;opacity:.20;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23n)' d='M0 0h160v160H0z'/%3E%3C/svg%3E");mix-blend-mode:soft-light}
+.chrome{position:absolute;inset:0;z-index:9;pointer-events:none;transition:color .18s;display:flex;align-items:flex-start;justify-content:space-between;padding:32px var(--spacing-page)}.chrome button{pointer-events:auto}.logo{width:38px;height:36px;display:grid;place-items:center}.logo svg{width:34px;height:34px}.wordmark{font:800 24px/1 "Barlow Condensed",var(--font-display);letter-spacing:.06em}.menu-toggle{height:36px;width:38px;display:grid;place-items:center}.menu-toggle span,.menu-toggle span::after{display:block;width:23px;height:3px;background:currentColor;transform:skew(-28deg);content:""}.menu-toggle span::after{transform:none;position:relative;top:7px;left:-5px}
+.sound{position:absolute;right:32px;bottom:29px;z-index:9;width:42px;height:42px;border-radius:50%;border:1px solid #f1ede459;display:flex;align-items:center;justify-content:center;gap:3px;background:#100d1577;color:var(--color-paper)}.sound i{width:2px;height:6px;background:currentColor;border-radius:1px}.sound i:nth-child(2){height:10px}.sound i:nth-child(3){height:14px}.sound i:nth-child(4){height:8px}.sound[aria-pressed="false"] i{height:3px}
+.mono{font:var(--text-label)/1.4 var(--font-mono);letter-spacing:.18em;text-transform:uppercase}.display{font:900 1em/.82 "Barlow Condensed",var(--font-display);letter-spacing:-.025em;text-transform:uppercase}
+
+</style></head><body><style>
+.opening{z-index:3;background:var(--color-theater);transform-origin:41.4% 36%;will-change:clip-path;clip-path:inset(0)}.opening video,.opening img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.opening video,.opening img{transform:scale(1.28)}.opening video{opacity:0}.opening video.ready{opacity:1}.opening::before{content:"";position:absolute;z-index:1;inset:0;background:linear-gradient(180deg,#100d1560,transparent 30%,transparent 52%,#100d15bf),repeating-linear-gradient(0deg,#0002 0 1px,transparent 1px 4px);pointer-events:none}
+.scroll-cue{position:absolute;z-index:6;bottom:44px;left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:13px;min-width:88px;padding:12px}.scroll-cue::after{content:"";width:9px;height:9px;border-right:1px solid;border-bottom:1px solid;transform:rotate(45deg)}.hero-scroll{color:var(--color-ink);bottom:19px}.intro-copy,.feature-copy{position:absolute;bottom:15%;width:min(16vw,210px);z-index:2}.intro-copy{right:var(--spacing-page)}.feature-copy{left:var(--spacing-page)}.intro-copy p+p,.feature-copy p+p{margin-top:8px}.intro-copy .mono,.feature-copy .mono{font-weight:600}.lens-trigger{position:absolute;inset:0;width:100%;z-index:2}
+</style>
+<main class="journey" aria-label="Hypertube scroll experience" tabindex="0"><div class="runway" style="position:relative"><div class="stage grain" data-doop-id="cinema-stage">
+<header class="chrome"><button class="logo" aria-label="Hypertube, restart"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M6 6v28m28-28v28M6 12l14 9 14-9M6 22l14 9 14-9" stroke="currentColor" stroke-width="3.5" stroke-linecap="square"/></svg></button><span class="wordmark">HYPERTUBE</span><button class="menu-toggle" aria-label="Open navigation" aria-expanded="false"><span></span></button></header>
+<button class="sound" aria-label="Turn sound on" aria-pressed="false"><i></i><i></i><i></i><i></i></button>
+<style>
+.runway{height:827vh}
+.journey.is-revealing{overflow:hidden}
+.theater .feature-copy{top:72%;bottom:auto}
+.stage>section.theater{z-index:0;background:#141016}
+.theater-art{position:absolute;inset:0;overflow:hidden;background:radial-gradient(ellipse at 51% 40%,#3a3035 0%,#20191b 37%,#0b080d 82%);transform:translateY(var(--room-offset,0px))}
+.room-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.theater-art::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#0c080d 0%,transparent 25%,transparent 75%,#0c080d 100%),linear-gradient(0deg,#08070b99,transparent 45%);z-index:2;pointer-events:none}.room-image+.room-set{display:none}
+.room-set{position:absolute;inset:0;container-type:size;overflow:hidden}
+.backwall{position:absolute;inset:20% 20% 27%;background:linear-gradient(90deg,#131014,#282024 50%,#131014);border:1px solid #5d462e;box-shadow:0 3cqh 10cqh #000}
+.ceiling-grids{position:absolute;inset:-19% 4% auto;height:59%;transform:perspective(640px) rotateX(-36deg);transform-origin:50% 70%;background:repeating-linear-gradient(90deg,#171216 0 2%,#b18b4c 2.2% 2.35%,#433329 2.5% 3%,transparent 3.3% 23%),repeating-linear-gradient(0deg,#211719 0 4%,#a07c48 4.3% 4.65%,#32261e 5.65% 6%,#241a1e 6.2% 23%);filter:brightness(.78);clip-path:polygon(0 0,100% 0,83% 100%,17% 100%)}
+.wall{position:absolute;top:11%;bottom:19%;width:26%;background:repeating-linear-gradient(90deg,#181217 0 1%,#8b6b47 1.4% 1.7%,#251b20 2% 10%,#100d13 11% 13%,#22191d 15% 27%);opacity:.85}.wall-left{left:0;clip-path:polygon(0 0,100% 25%,100% 89%,0 100%)}.wall-right{right:0;transform:scaleX(-1);clip-path:polygon(0 0,100% 25%,100% 89%,0 100%)}
+.mock-screen{position:absolute;inset:26.7% 26.6% 32.7%;border:4px solid #9c7746;background:#101014;box-shadow:0 0 0 8px #100e12,0 0 42px #ddae6c45}
+.riser{position:absolute;left:21%;right:21%;bottom:19%;height:15%;border-radius:0 0 48% 48%;border-bottom:2px solid #a57a43;background:linear-gradient(#3e1a19 0 47%,#230f12 50%,#351315 67%,#1a1014 70%);box-shadow:0 2cqh #2a1315,0 3.8cqh #130b10}
+.seat-row{position:absolute;display:flex;gap:1.5cqw;left:17%;right:17%;bottom:-9%;height:27%;justify-content:center}.seat-row.back{left:24%;right:24%;bottom:3%;height:20%;transform:scale(.96)}.seat{flex:1;min-width:0;border-radius:20% 20% 12% 12%;border:1px solid #62554e;background:linear-gradient(135deg,#574940,#251e21 25%,#141116 80%);box-shadow:inset 0 1cqh 1.5cqh #ffffff15,0 0 1.7cqh #000;transform:perspective(350px) rotateX(-12deg)}.seat::before{content:"";display:block;margin:14% 9% 0;height:35%;border:1px solid #6d615352;border-radius:20% 20% 14% 14%;background:#211b1e}
+.stage>section.opening{z-index:1;clip-path:none;background:transparent;pointer-events:none}.opening::before{display:none}.stage>section.timeline{z-index:2}.film-layer{z-index:3}.opening .scroll-cue{pointer-events:auto}
+.reel-plane{position:absolute;top:0;left:0;width:100%;height:100%;transform-origin:0 0;overflow:hidden;background:#0b080d;will-change:transform}.reel-plane::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,#0002 0 1px,transparent 1px 4px)}
+.opening .reel-plane video,.opening .reel-plane img{transform:none;object-fit:cover}.opening .reel-plane video.ready{opacity:1}
+.theater .feature-copy{z-index:4;color:var(--color-paper);text-shadow:0 1px 8px #000;bottom:12%;width:min(15vw,200px)}.stage .film-card img{border-width:2px}
+</style>
+<section class="theater" aria-label="Private screening room" data-doop-id="portrait-hero">
+<div class="theater-art"><img class="room-image" src="design-assets/theater.png" alt="Black and antique gold private screening room"><div class="room-set" aria-hidden="true"><div class="backwall"></div><div class="ceiling-grids"></div><div class="wall wall-left"></div><div class="wall wall-right"></div><div class="mock-screen"></div><div class="riser"></div><div class="seat-row back"><div class="seat"></div><div class="seat"></div><div class="seat"></div><div class="seat"></div><div class="seat"></div></div><div class="seat-row"><div class="seat"></div><div class="seat"></div><div class="seat"></div><div class="seat"></div><div class="seat"></div></div></div></div>
+<div class="feature-copy"><p class="mono">2024 · Best Picture</p><p>Oppenheimer</p></div></section>
+<section class="opening" aria-label="Opening reel" data-doop-id="opening-reel"><div class="reel-plane"><img src="design-assets/reel-poster.jpg" alt=""><video class="opening-video" src="design-assets/reel.mp4" muted playsinline loop preload="auto" aria-hidden="true"></video></div><button class="scroll-cue mono" data-reveal>Scroll</button></section><style>
+.timeline{z-index:1;clip-path:polygon(0 100%,100% 100%,100% 100%,0 100%);background:radial-gradient(ellipse at 23% 36%,var(--color-quote),var(--color-theater) 70%)}
+.field{position:absolute;inset:0;opacity:.32;background:repeating-linear-gradient(to right,transparent 0 calc(19.2vw - 1px),#f1ede430 calc(19.2vw - 1px) 19.2vw)}.field::after{content:"";position:absolute;inset:auto 0 0;height:24px;background:repeating-linear-gradient(to right,transparent 0 calc(3.8vw - 1px),#f1ede459 calc(3.8vw - 1px) 3.8vw)}
+.timeline h1{position:absolute;left:2.5%;top:9%;color:var(--color-timeline);font-size:15vw;white-space:nowrap;transform:scaleX(.89);transform-origin:left}
+.year-track{position:absolute;inset:73% 0 auto;pointer-events:none}.year-track span{position:absolute;left:calc(23vw + var(--i)*37vw);font:700 6.3vw/1 "Barlow Condensed",var(--font-display);color:var(--color-paper);opacity:.13}
+.film-layer{position:absolute;inset:0;z-index:2;pointer-events:none}.film-card{position:absolute;left:0;top:0;pointer-events:auto;text-align:left;transform-origin:0 0;will-change:transform;max-width:240px}.film-card article{width:230px;max-width:none}.film-card article img{width:230px;height:340px;object-fit:cover;border:2px solid var(--color-poster-edge);box-shadow:0 13px 28px #0007;border-radius:5px}.film-card article>div{padding:0 2px;align-items:start;color:var(--color-paper);text-transform:uppercase;letter-spacing:.06em}.film-card:first-child article>div{opacity:var(--card-caption,0)}.film-card:focus-visible{outline-offset:5px}.film-card:hover img{border-color:var(--color-paper)}.film-card[hidden]{display:none}
+.timeline-cue{left:auto;right:var(--spacing-page);transform:none;bottom:44px}
+</style>
+<section class="timeline" aria-label="Best Picture timeline" data-doop-id="awards-timeline"><div class="field" aria-hidden="true"></div><h1 class="display">Best Picture</h1><div class="year-track" aria-hidden="true"><span style="--i:0">2024</span><span style="--i:1">2023</span><span style="--i:2">2022</span><span style="--i:3">2020</span></div><button class="scroll-cue timeline-cue mono" data-seek="7.22">Continue</button></section>
+<div class="film-layer" aria-label="Film posters"><button class="film-card" data-film="0" aria-label="Watch the Oppenheimer trailer"><article style="width:210px;flex:none" data-doop-instance="c4vkpq93x3" data-doop-rev="1" data-doop-id="qcdatz" data-doop-props="{&quot;title&quot;:&quot;Oppenheimer&quot;}"><img src="https://image.tmdb.org/t/p/w500/ptpr0kGAckfQkJeJIt8st5dglvd.jpg" alt="Oppenheimer poster" style="width:100%;height:292px;object-fit:cover;display:block;border-radius:var(--radius-card)" data-doop-part="ifal"><div style="display:flex;justify-content:space-between;gap:12px;margin-top:12px;font-family:var(--font-mono);font-size:var(--text-label)" data-doop-part="qckt"><span data-doop-part="dlgr">Oppenheimer</span><span style="color:var(--color-muted)" data-doop-part="iovk">2024</span></div></article></button><button class="film-card" data-film="1" aria-label="Watch the Everything Everywhere All at Once trailer" hidden><article style="width:210px;flex:none" data-doop-instance="c4vkpq93x3" data-doop-rev="1" data-doop-id="5mf0bn" data-doop-props="{&quot;poster&quot;:&quot;https://image.tmdb.org/t/p/w500/w3LxiVYdWWRvEVdn5RYq6jIqkb1.jpg&quot;,&quot;title&quot;:&quot;Everything Everywhere All at Once&quot;,&quot;year&quot;:&quot;2023&quot;}"><img src="https://image.tmdb.org/t/p/w500/w3LxiVYdWWRvEVdn5RYq6jIqkb1.jpg" alt="Oppenheimer poster" style="width:100%;height:292px;object-fit:cover;display:block;border-radius:var(--radius-card)" data-doop-part="ifal"><div style="display:flex;justify-content:space-between;gap:12px;margin-top:12px;font-family:var(--font-mono);font-size:var(--text-label)" data-doop-part="qckt"><span data-doop-part="dlgr">Everything Everywhere All at Once</span><span style="color:var(--color-muted)" data-doop-part="iovk">2023</span></div></article></button><button class="film-card" data-film="2" aria-label="Watch the CODA trailer" hidden><article style="width:210px;flex:none" data-doop-instance="c4vkpq93x3" data-doop-rev="1" data-doop-id="jappb7" data-doop-props="{&quot;poster&quot;:&quot;https://image.tmdb.org/t/p/w500/BzVjmm8l23rPsijLiNLUzuQtyd.jpg&quot;,&quot;title&quot;:&quot;CODA&quot;,&quot;year&quot;:&quot;2022&quot;}"><img src="https://image.tmdb.org/t/p/w500/BzVjmm8l23rPsijLiNLUzuQtyd.jpg" alt="Oppenheimer poster" style="width:100%;height:292px;object-fit:cover;display:block;border-radius:var(--radius-card)" data-doop-part="ifal"><div style="display:flex;justify-content:space-between;gap:12px;margin-top:12px;font-family:var(--font-mono);font-size:var(--text-label)" data-doop-part="qckt"><span data-doop-part="dlgr">CODA</span><span style="color:var(--color-muted)" data-doop-part="iovk">2022</span></div></article></button><button class="film-card" data-film="3" aria-label="Watch the Parasite trailer" hidden><article style="width:210px;flex:none" data-doop-instance="c4vkpq93x3" data-doop-rev="1" data-doop-id="b65kjk" data-doop-props="{&quot;poster&quot;:&quot;https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg&quot;,&quot;title&quot;:&quot;Parasite&quot;,&quot;year&quot;:&quot;2020&quot;}"><img src="https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg" alt="Oppenheimer poster" style="width:100%;height:292px;object-fit:cover;display:block;border-radius:var(--radius-card)" data-doop-part="ifal"><div style="display:flex;justify-content:space-between;gap:12px;margin-top:12px;font-family:var(--font-mono);font-size:var(--text-label)" data-doop-part="qckt"><span data-doop-part="dlgr">Parasite</span><span style="color:var(--color-muted)" data-doop-part="iovk">2020</span></div></article></button></div><style>
+.statement{z-index:5;display:grid;place-items:center;background:radial-gradient(ellipse at 40% 24%,var(--color-timeline),var(--color-quote) 56%,var(--color-theater));opacity:0;pointer-events:none;text-align:center}.statement::after{opacity:.32}.quote-inner{position:relative;z-index:5;display:grid;justify-items:center;width:100%;padding:0 4vw}.quote-marks{font:900 6.8vw/.65 "Barlow Condensed",var(--font-display);opacity:.45;margin-bottom:5vh}.quote-lock{position:relative;transform-origin:center}.quote-title{font-size:10.3vw;line-height:.85}.quote-dots{position:absolute;inset:0;color:transparent;background:radial-gradient(circle,var(--color-paper) 29%,transparent 32%) 0 0/5px 5px;background-clip:text;-webkit-background-clip:text}.quote-copy{margin-top:5vh;color:var(--color-paper)}
+.menu-panel{position:absolute;z-index:10;top:82px;right:var(--spacing-page);width:200px;padding:12px;background:var(--color-theater);border:1px solid #f1ede433;color:var(--color-paper);box-shadow:0 12px 28px #0006}.menu-panel[hidden]{display:none}.menu-panel button{display:block;width:100%;padding:12px;text-align:left}.menu-panel button:hover{background:var(--color-quote)}
+.screening{border:0;color:var(--color-paper);background:var(--color-theater);width:min(78vw,1120px);max-width:none;margin:auto;box-shadow:0 20px 90px #000b;border-radius:var(--radius-card);overflow:hidden}.screening::backdrop{background:#0a0712d9}.screening-header,.screening-footer{display:flex;align-items:center;justify-content:space-between;padding:14px 20px}.screening-header{gap:20px}.screening-header button{width:36px;height:36px;flex:none;display:grid;place-items:center}.screening-header svg{width:18px;height:18px}.screening-player{display:grid;place-items:center;width:100%;aspect-ratio:16/9;background:var(--color-panel);overflow:hidden}.screening-player iframe,.screening-player video{width:100%;height:100%;border:0}.screening-player video{object-fit:contain}.screening-footer[hidden]{display:none}
+</style>
+<section class="statement grain" aria-label="Hypertube statement" data-doop-id="hypertube-statement"><div class="quote-inner"><div class="quote-marks" aria-hidden="true">“ ”</div><div class="quote-lock"><h2 class="quote-title display">Every film opens<br>another world.</h2><div class="quote-title quote-dots display" aria-hidden="true">Every film opens<br>another world.</div></div><p class="quote-copy">Discover unforgettable stories. Revisit the films that stay with you.</p></div></section>
+<nav class="menu-panel mono" aria-label="Jump to section" hidden><button data-seek="0">Opening reel</button><button data-reveal>The theater</button><button data-seek="3.24">Best Picture</button><button data-seek="7.22">Hypertube</button></nav>
+<dialog class="screening" aria-labelledby="screening-title"><div class="screening-header"><h2 id="screening-title" class="mono"></h2><button class="close-screening" aria-label="Close screening"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m4 4 12 12M16 4 4 16" stroke="currentColor" stroke-width="1.7"/></svg></button></div><div class="screening-player"></div><div class="screening-footer mono" hidden><a target="_blank" rel="noopener noreferrer">Open official trailer</a></div></dialog>
+</div></div></main><script>
+(() => {
+  const films = [{"title":"Oppenheimer","year":2024,"trailer":"bK6ldnjE3Y0"},{"title":"Everything Everywhere All at Once","year":2023,"trailer":"wxN1T1uxQ2g"},{"title":"CODA","year":2022,"trailer":"0pmfrE1YL4I"},{"title":"Parasite","year":2020,"trailer":"isOGD_7hNIY"}];
+  const find = selector => document.querySelector(selector);
+  const scroller = find('.journey');
+  const stage = find('.stage');
+  const opening = find('.opening');
+  const theater = find('.theater');
+  const reelPlane = find('.reel-plane');
+  const reel = find('.opening-video');
+  const scrollCue = find('.opening .scroll-cue');
+  const featureCopy = find('.feature-copy');
+  const exactRoom = Boolean(find('.room-image'));
+  const timeline = find('.timeline');
+  const statement = find('.statement');
+  const yearTrack = find('.year-track');
+  const field = find('.field');
+  const chrome = find('.chrome');
+  const quoteLock = find('.quote-lock');
+  const quoteTitle = find('h2.quote-title');
+  const quoteDots = find('.quote-dots');
+  const quoteExtras = Array.from(document.querySelectorAll('.quote-copy, .quote-marks'));
+  const cards = Array.from(document.querySelectorAll('.film-card'));
+
+  const sound = find('.sound');
+  const menu = find('.menu-panel');
+  const menuButton = find('.menu-toggle');
+  const dialog = find('.screening');
+  const player = find('.screening-player');
+  const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  const still = Number(document.body.dataset.still ?? -1);
+  const clamp = n => Math.max(0, Math.min(1, n));
+  const range = (p, a, b) => clamp((p-a)/(b-a));
+  const mix = (a,b,t) => a+(b-a)*t;
+  const ease = t => t*t*(3-2*t);
+  let soundOn = false;
+  let scheduled = false;
+  let phase;
+  const cinemaHold = .92;
+  const revealDuration = 850;
+  const wheelQuietTime = 180;
+  let openingState = still >= 0 ? 'cinema' : 'fullscreen';
+  let revealStart = 0;
+  let lastWheel = -Infinity;
+  let untilWheelQuiet = false;
+
+  function render(now = performance.now()) {
+    scheduled = false;
+    const w = stage.clientWidth, h = stage.clientHeight;
+    const reduced = motion.matches;
+    const revealing = openingState === 'revealing';
+    const time = revealing ? range(now-revealStart,0,revealDuration) : Number(openingState === 'cinema');
+    const pull = reduced && revealing ? 1 : ease(time);
+    const distance = scroller.scrollTop / Math.max(1,h);
+    const p = openingState === 'cinema' ? Math.max(0,distance-cinemaHold) : 0;
+    const wipe = range(p,.14,1.90);
+    const roomOffset = h*.042*ease(range(p,.43,1.52));
+    stage.style.setProperty('--room-offset',roomOffset+'px');
+    const artScale = Math.max(w/1440,h/900);
+    const screen = exactRoom
+      ? [(w-1440*artScale)/2+477*artScale,(h-900*artScale)/2+294*artScale+roomOffset,512*artScale,233*artScale]
+      : [w*.266,h*.267+roomOffset,w*.468,h*.406];
+    const [x,y,width,height] = screen;
+    reelPlane.style.transform = 'translate3d('+x*pull+'px,'+y*pull+'px,0) scale('+mix(1,width/w,pull)+','+mix(1,height/h,pull)+')';
+    scrollCue.style.opacity = 1-range(time,0,.23);
+    scrollCue.inert = openingState !== 'fullscreen';
+    const edge = reduced ? (wipe > .36 ? -25 : 100) : mix(100,-24,wipe);
+    timeline.style.clipPath = 'polygon(0 '+edge+'%,100% '+(edge-24*ease(range(p,.14,.90)))+'%,100% 100%,0 100%)';
+    timeline.inert = p < 1.55 || p >= 5.2;
+    theater.inert = p > 1.9;
+    const revealPoster = range(time,.42,.91);
+    featureCopy.style.opacity = revealPoster*(1-range(p,.25,.67));
+
+    const travel = range(p,1.37,5.17);
+    const shift = w*mix(0,1.56,travel);
+    yearTrack.style.transform = 'translateX('+(-shift*.82)+'px)';
+    field.style.backgroundPositionX = (-shift*.8)+'px';
+    const firstMove = ease(range(p,.34,1.40));
+    const startScale = Math.min(.63,w/1850);
+    const cardScale = Math.min(1.045,w/1100,h/690);
+    cards.forEach((card,i) => {
+      const left = i ? w*(.52+i*.34)-shift : mix(w*.034,w*.52,firstMove)-shift;
+      const top = i ? h*[0,.39,.10,.21][i] : mix(h*.48,h*.16,firstMove);
+      const angle = reduced ? 0 : (i ? [0,-11,12,-9][i]*Math.cos(travel*4+i*.54) : Math.sin(firstMove*Math.PI)*83-firstMove*5);
+      const scale = i ? cardScale : mix(startScale,cardScale,firstMove);
+      card.style.transform = 'translate3d('+left+'px,'+top+'px,0) perspective(800px) rotateY('+angle+'deg) rotate('+angle*.07+'deg) scale('+scale+')';
+      card.hidden = (i > 0 && p < 1.13) || (!i && time < .42) || left < -245 || left > w+80 || p > 5.25;
+      const poster = card.querySelector('img');
+      if (poster && poster.alt !== films[i].title+' poster') poster.alt = films[i].title+' poster';
+      card.tabIndex = left < 0 || left > w-40 || openingState !== 'cinema' || p > 5.1 ? -1 : 0;
+      card.style.opacity = i ? range(p,1.13,1.55) : revealPoster;
+    });
+    stage.style.setProperty('--card-caption',range(p,1.03,1.53));
+
+    const arrive = range(p,5.0,5.48);
+    const settle = ease(range(p,5.50,6.24));
+    statement.style.opacity = arrive;
+    statement.style.pointerEvents = arrive === 1 ? 'auto' : 'none';
+    statement.inert = arrive < 1;
+    quoteLock.style.transform = 'scale('+(reduced ? 1 : mix(2.72,1,settle))+')';
+    quoteTitle.style.opacity = reduced ? 1 : settle;
+    quoteDots.style.opacity = reduced ? 0 : 1-settle;
+    quoteExtras.forEach(el => el.style.opacity = reduced ? 1 : range(p,5.99,6.25));
+
+    const nextPhase = openingState !== 'cinema' ? openingState : p < 1.9 ? 'theater' : p < 5.38 ? 'timeline' : 'statement';
+    chrome.style.color = 'var(--color-paper)';
+    find('.timeline-cue').style.opacity = range(p,4.45,4.86)*(1-arrive);
+    find('.timeline-cue').tabIndex = p > 4.65 ? 0 : -1;
+    find('.wordmark').style.opacity = range(time,.36,.90)*(1-range(p,1.27,1.83));
+    if (phase !== nextPhase) {
+      phase = nextPhase;
+      stage.dataset.phase = phase;
+      syncVideo();
+    }
+    if (revealing && (time === 1 || reduced)) {
+      openingState = 'cinema';
+      scroller.classList.remove('is-revealing');
+      scroller.focus({preventScroll:true});
+      schedule();
+    } else if (revealing) {
+      schedule();
+    }
+  }
+
+  function syncVideo() {
+    if (still >= 0) return;
+    const visible = !dialog.open && !motion.matches && (['fullscreen','revealing','theater'].includes(phase));
+    reel.muted = !soundOn;
+    if (visible && reel.paused) reel.play().catch(() => {});
+    if (!visible && !reel.paused) reel.pause();
+  }
+
+  function schedule() {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(render);
+  }
+
+  function closeMenu() {
+    menu.hidden = true;
+    menuButton.setAttribute('aria-expanded','false');
+  }
+
+  function startReveal() {
+    closeMenu();
+    if (openingState === 'cinema') {
+      scroller.scrollTo({top:0,behavior:motion.matches ? 'instant' : 'smooth'});
+      return;
+    }
+    if (openingState === 'revealing') return;
+    revealStart = performance.now();
+    openingState = 'revealing';
+    untilWheelQuiet = true;
+    scroller.scrollTop = 0;
+    scroller.classList.add('is-revealing');
+    schedule();
+  }
+
+  function seek(step) {
+    closeMenu();
+    openingState = step === 0 ? 'fullscreen' : 'cinema';
+    untilWheelQuiet = false;
+    scroller.classList.remove('is-revealing');
+    scroller.scrollTo({top:step*stage.clientHeight,behavior:step === 0 || motion.matches ? 'instant' : 'smooth'});
+    schedule();
+  }
+
+  function openScreen(trigger) {
+    const film = films[Number(trigger.dataset.film)];
+    const footer = find('.screening-footer');
+    if (film) {
+      find('#screening-title').textContent = film.title+' · Official trailer';
+      const link = footer.querySelector('a');
+      link.href = 'https://www.youtube.com/watch?v='+film.trailer;
+      const embed = document.createElement('iframe');
+      embed.src = 'https://www.youtube-nocookie.com/embed/'+film.trailer+'?rel=0&playsinline=1';
+      embed.title = film.title+' official trailer';
+      embed.allow = 'encrypted-media; picture-in-picture; fullscreen';
+      embed.allowFullscreen = true;
+      player.replaceChildren(embed);
+      footer.hidden = false;
+    }
+    dialog.showModal();
+    syncVideo();
+  }
+
+  stage.addEventListener('click', e => {
+    const target = e.target.closest('button');
+    if (!target) { if (e.target === dialog) dialog.close(); return; }
+    if (target.dataset.seek !== undefined) seek(Number(target.dataset.seek));
+    if (target.hasAttribute('data-reveal')) startReveal();
+    if (target.classList.contains('logo')) seek(0);
+    if (target === menuButton) {
+      menu.hidden = !menu.hidden;
+      menuButton.setAttribute('aria-expanded', String(!menu.hidden));
+    }
+    if (target === sound) {
+      soundOn = !soundOn;
+      sound.setAttribute('aria-pressed',String(soundOn));
+      sound.setAttribute('aria-label',soundOn ? 'Turn sound off' : 'Turn sound on');
+      syncVideo();
+    }
+    if (target.dataset.film !== undefined) openScreen(target);
+    if (target.classList.contains('close-screening')) dialog.close();
+  });
+  dialog.addEventListener('close', () => {
+    player.replaceChildren();
+    syncVideo();
+  });
+  reel.defaultMuted = true;
+  reel.addEventListener('playing', () => {
+    if (exactRoom) reel.classList.add('ready');
+    else window.setTimeout(() => reel.classList.add('ready'),450);
+  },{once:true});
+  reel.addEventListener('canplay', syncVideo);
+  scroller.addEventListener('wheel', event => {
+    if (dialog.open || event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    const now = performance.now();
+    const idle = now-lastWheel > wheelQuietTime;
+    lastWheel = now;
+    if (openingState === 'fullscreen') {
+      if (event.deltaY <= 0) return;
+      event.preventDefault();
+      startReveal();
+    } else if (openingState === 'revealing' || (untilWheelQuiet && !idle)) {
+      event.preventDefault();
+    } else {
+      untilWheelQuiet = false;
+    }
+  },{passive:false});
+
+  let touchStartY = null;
+  scroller.addEventListener('touchstart', event => {
+    touchStartY = event.touches.length === 1 ? event.touches[0].clientY : null;
+  },{passive:true});
+  scroller.addEventListener('touchmove', event => {
+    if (dialog.open || event.touches.length !== 1 || touchStartY === null) return;
+    if (openingState === 'fullscreen' && touchStartY-event.touches[0].clientY > 10) {
+      event.preventDefault();
+      touchStartY = null;
+      startReveal();
+    } else if (openingState === 'revealing') {
+      event.preventDefault();
+    }
+  },{passive:false});
+
+  window.addEventListener('keydown', event => {
+    if (dialog.open || event.altKey || event.ctrlKey || event.metaKey) return;
+    const onButton = event.target instanceof Element && event.target.closest('button,a');
+    if (onButton && event.key === ' ') return;
+    if (!['ArrowDown','PageDown','End',' '].includes(event.key) || event.shiftKey) return;
+    if (openingState === 'cinema') {
+      if (event.repeat && untilWheelQuiet) event.preventDefault();
+      else untilWheelQuiet = false;
+      return;
+    }
+    event.preventDefault();
+    startReveal();
+  });
+
+  scroller.addEventListener('scroll', () => {
+    if (openingState === 'fullscreen' && scroller.scrollTop > 0) startReveal();
+    schedule();
+  },{passive:true});
+  window.addEventListener('resize',schedule);
+  motion.addEventListener('change',()=>{ syncVideo(); schedule(); });
+  if (still >= 0) scroller.scrollTop = still*stage.clientHeight;
+  render();
+  if (still < 0) window.setTimeout(syncVideo, 1000);
+})();
+</script></body></html>

@@ -32,14 +32,14 @@ Inspect the live reference before describing an animation as an exact match. Tre
 - Use the existing Next.js application in `client/`, React, and TypeScript. Inspect the installed versions and repository conventions before changing dependencies.
 - Use Tailwind CSS for layout, responsive styling, typography, and shared visual tokens.
 - Use GSAP as the main animation controller. Use ScrollTrigger for pinned sections, scroll progress, and timeline movement where appropriate.
-- Use Lenis to smooth the page's native scrolling. Synchronize its scroll events and animation frame loop with GSAP and ScrollTrigger using the current official integration guide. Create and destroy the Lenis instance with the client experience lifecycle.
+- Use Lenis as the required smooth-scroll library for this landing page. Synchronize its scroll events and animation frame loop with GSAP and ScrollTrigger using the current official integration guide. Create and destroy the Lenis instance with the client experience lifecycle.
 - Use Anime.js only when a specific effect benefits from it, such as an isolated text or decorative animation. Give each animated property one owner so GSAP and Anime.js cannot overwrite each other.
 - Use Three.js to render the approved retextured theater model as a real-time 3D scene. Preserve its black and antique-gold materials. Decide whether a React integration is useful after inspecting the client. Adding an integration library is an implementation choice to explain.
 - Keep browser-dependent animation and rendering inside suitable client components. Keep static content and data outside the animation loop where possible.
 
 The existing client already declares Next.js, React, and TypeScript. The inspected package manifest does not yet declare Tailwind CSS, GSAP, Anime.js, or Three.js. Check the current manifest again when implementation starts.
 
-Lenis is part of the agreed scroll animation stack. Check whether the current manifest already declares it when implementation starts. [Lenis documentation](https://lenis.dev/) · [Lenis GSAP integration guide](https://github.com/darkroomengineering/lenis#gsap-scrolltrigger)
+Lenis is required for the cinema hold, the poster handoff, and the awards timeline. Use its synchronized scroll position to drive GSAP ScrollTrigger animations. Keep the opening reveal on its own timed GSAP timeline while Lenis is paused, then resume smooth scrolling into the cinema hold. Apply reduced-motion preferences throughout the sequence. Check whether the current manifest already declares Lenis when implementation starts. [Lenis documentation](https://lenis.dev/) · [Lenis GSAP integration guide](https://github.com/darkroomengineering/lenis#gsap-scrolltrigger)
 
 ## Use the existing prototype and assets
 
@@ -214,7 +214,7 @@ The current prototype uses an approximately 850 ms reveal and a brief 180 ms inp
 2. Ask which award determines the winner and whether labels use release years or award ceremony years.
 3. Confirm the year range and whether the timeline moves forward or backward through time.
 4. Arrange one selected winning movie per year in the approved range.
-5. Connect scroll progress to poster movement, year labels, and the active movie.
+5. Connect Lenis scroll progress through GSAP ScrollTrigger to poster movement, year labels, and the active movie.
 6. Keep poster dimensions and typography consistent with the reference composition.
 7. Open the selected movie's trailer when its poster is activated.
 8. Provide close controls, Escape handling, focus restoration, and clear playback failure feedback.

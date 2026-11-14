@@ -3,18 +3,23 @@
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useLenis } from "lenis/react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { cinemaMedia, draftMovies } from "../data/movies";
+import { bestPictureWinners, cinemaMedia, type Movie } from "../data/movies";
+import { TrailerDialog } from "./trailer-dialog";
 import { useCinemaReveal } from "./use-cinema-reveal";
 
 const CinemaScene = dynamic(() => import("./cinema-scene"), { ssr: false });
 
-const featured = draftMovies[0];
+const featured = bestPictureWinners[0];
 const cinemaHoldViewports = 1;
 const handoffViewports = 1.35;
 const timelineHoldViewports = 0.5;
+const filmViewports = 0.7;
+const lastFilm = bestPictureWinners.length - 1;
+const timelineStart = cinemaHoldViewports + handoffViewports;
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -25,6 +30,13 @@ const control = "grid min-h-11 cursor-pointer place-items-center rounded-full bo
 export function MovieEdit() {
   const { stage, phase, reveal } = useCinemaReveal();
   const runway = useRef<HTMLDivElement>(null);
+  const lenis = useLenis();
+  const [filmIndex, setFilmIndex] = useState(0);
+  const [timelineVisible, setTimelineVisible] = useState(false);
+  const [trailer, setTrailer] = useState<Movie | null>(null);
+  const trailerTrigger = useRef<HTMLButtonElement>(null);
+  const resumeEdit = useRef(false);
+  const movie = bestPictureWinners[filmIndex] ?? featured;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playback, setPlayback] = useState<Playback>("paused");
   const [muted, setMuted] = useState(true);
@@ -33,6 +45,20 @@ export function MovieEdit() {
     const section = stage.current;
     const scrollArea = runway.current;
     if (!section || !scrollArea) return;
+
+    ScrollTrigger.create({
+      trigger: scrollArea,
+      start: () => `top+=${section.clientHeight * timelineStart} top`,
+      end: () => `+=${section.clientHeight * filmViewports * lastFilm}`,
+      onUpdate: ({ progress }) => setFilmIndex(Math.round(progress * lastFilm)),
+      onLeaveBack: () => {
+        setTimelineVisible(false);
+        setFilmIndex(0);
+      },
+      onEnter: () => setTimelineVisible(true),
+      onEnterBack: () => setTimelineVisible(true),
+      onLeave: () => setTimelineVisible(true),
+    });
 
     const motion = gsap.matchMedia();
     motion.add({
@@ -73,6 +99,32 @@ export function MovieEdit() {
     return () => motion.removeEventListener("change", pauseForReducedMotion);
   }, []);
 
+  function goToFilm(index: number) {
+    const scrollArea = runway.current;
+    const section = stage.current;
+    if (!scrollArea || !section) return;
+
+    const distance = timelineStart + filmViewports * index;
+    const top = window.scrollY + scrollArea.getBoundingClientRect().top + section.clientHeight * distance + 1;
+    if (lenis) lenis.scrollTo(top);
+    else window.scrollTo({ top });
+  }
+
+  function openTrailer() {
+    const video = videoRef.current;
+    resumeEdit.current = Boolean(video && !video.paused);
+    video?.pause();
+    lenis?.stop();
+    setTrailer(movie);
+  }
+
+  function closeTrailer() {
+    setTrailer(null);
+    lenis?.start();
+    trailerTrigger.current?.focus({ preventScroll: true });
+    if (resumeEdit.current) void videoRef.current?.play().catch(() => {});
+  }
+
   function togglePlayback() {
     const video = videoRef.current;
     if (!video) return;
@@ -87,7 +139,7 @@ export function MovieEdit() {
   }
 
   return (
-    <div ref={runway} style={{ minHeight: `${(1 + cinemaHoldViewports + handoffViewports + timelineHoldViewports) * 100}svh` }}>
+    <div ref={runway} style={{ minHeight: `${(1 + cinemaHoldViewports + handoffViewports + timelineHoldViewports + filmViewports * lastFilm) * 100}svh` }}>
       <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
         <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
         <div className="cinema-screen">
@@ -144,25 +196,56 @@ export function MovieEdit() {
             {featured.award}
           </h2>
           <p className="cinema-timeline-label absolute bottom-[10%] left-page font-display text-[clamp(3rem,7vw,7rem)] leading-none font-bold text-paper/35">
-            {featured.awardYear}
+            {movie.awardYear}
           </p>
         </section>
 
         {phase === "cinema" && (
           <figure className="cinema-featured-poster absolute grid gap-2 drop-shadow-lg">
-            <Image
-              src={featured.poster}
-              alt=""
-              width={176}
-              height={264}
-              unoptimized
-              className="aspect-[2/3] h-auto w-full rounded-card border border-gold bg-ink object-cover"
-            />
+            <button
+              ref={trailerTrigger}
+              type="button"
+              aria-label={`Watch the ${movie.title} trailer`}
+              onClick={openTrailer}
+              className="group relative isolate aspect-[2/3] w-full cursor-pointer overflow-hidden rounded-card border border-gold bg-ink"
+            >
+              <span aria-hidden="true" className="absolute inset-0 grid place-items-center p-2 text-center font-display text-2xl">{movie.title}</span>
+              <Image
+                key={movie.poster}
+                src={movie.poster}
+                alt=""
+                width={240}
+                height={360}
+                unoptimized
+                onError={(event) => { event.currentTarget.hidden = true; }}
+                className="cinema-timeline-poster-image relative aspect-[2/3] h-auto w-full object-cover"
+              />
+              <span aria-hidden="true" className="absolute right-2 bottom-2 rounded-full bg-black/80 px-3 py-1 font-mono text-xs opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Play trailer</span>
+            </button>
             <figcaption className="font-mono text-[clamp(0.625rem,1.1vw,0.875rem)] text-paper">
-              {featured.title}
+              {movie.title}
             </figcaption>
           </figure>
         )}
+
+        {phase === "cinema" && timelineVisible && (
+          <nav aria-label="Best Picture years" className="absolute inset-x-page bottom-[15%] flex justify-start gap-1.5 overflow-x-auto md:justify-center md:gap-3" data-lenis-prevent-horizontal>
+            {bestPictureWinners.map((film, index) => (
+              <button
+                key={film.awardYear}
+                type="button"
+                aria-current={filmIndex === index ? "true" : undefined}
+                aria-label={`${film.awardYear}, ${film.title}`}
+                onClick={() => goToFilm(index)}
+                className="min-h-11 shrink-0 cursor-pointer border-t border-paper/30 bg-ink px-2 font-mono text-xs text-paper/70 hover:text-paper aria-[current=true]:border-gold aria-[current=true]:text-paper"
+              >
+                {film.awardYear}
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {trailer && <TrailerDialog movie={trailer} onClose={closeTrailer} />}
 
         <div className="absolute inset-x-0 bottom-0 grid grid-cols-[1fr_auto_1fr] items-end gap-2 px-page pb-6 md:pb-8">
           <div>

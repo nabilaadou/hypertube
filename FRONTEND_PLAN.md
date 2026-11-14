@@ -214,24 +214,24 @@ The current prototype uses an approximately 850 ms reveal and a brief 180 ms inp
 
 ### Steps
 
-1. Use the draft posters while the user prepares the final collection.
-2. Ask which award determines the winner and whether labels use release years or award ceremony years.
-3. Confirm the year range and whether the timeline moves forward or backward through time.
-4. Arrange one selected winning movie per year in the approved range.
+1. Use the ten approved Oscar Best Picture winners in `client/app/data/movies.ts`.
+2. Display Oscar ceremony years.
+3. Order the selection oldest first, from 1980 to 2026.
+4. Use Kramer vs. Kramer as the first poster and the featured film in the cinema.
 5. Connect Lenis scroll progress through GSAP ScrollTrigger to poster movement, year labels, and the active movie.
 6. Keep poster dimensions and typography consistent with the reference composition.
 7. Open the selected movie's trailer when its poster is activated.
 8. Provide close controls, Escape handling, focus restoration, and clear playback failure feedback.
 
-The existing draft labels include Oppenheimer with 2024, Everything Everywhere All at Once with 2023, CODA with 2022, and Parasite with 2020. These are prototype entries. Confirm their intended award-year meaning and the final collection before presenting the timeline as complete.
+The timeline uses remotely hosted poster images and YouTube trailers. The trailer dialog includes a direct watch link so visitors can open the trailer if the embedded player is unavailable.
 
 ### Acceptance criteria
 
-- [ ] Each poster corresponds to the correct title, chosen year convention, and trailer.
-- [ ] The timeline progresses at a readable pace.
-- [ ] Poster activation works with both pointer and keyboard input.
-- [ ] Closing a trailer returns the visitor to the same place in the landing page.
-- [ ] Draft content is documented for the user to replace.
+- [x] Each poster corresponds to the correct title, chosen year convention, and trailer.
+- [x] The timeline progresses at a readable pace.
+- [x] Poster activation works with both pointer and keyboard input.
+- [x] Closing a trailer returns the visitor to the same place in the landing page.
+- [x] The approved lineup and ceremony-year convention are recorded.
 
 ## Task 8 — End with the Hypertube statement
 

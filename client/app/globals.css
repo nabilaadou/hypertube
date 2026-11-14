@@ -118,3 +118,15 @@
   bottom: calc(16cqh + var(--poster-travel) * 22cqh);
   width: calc(var(--featured-width) + var(--poster-travel) * (var(--timeline-width) - var(--featured-width)));
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  .cinema-timeline-poster-image {
+    animation: timeline-poster-in 220ms ease-out;
+  }
+}
+
+@keyframes timeline-poster-in {
+  from {
+    opacity: 0;
+  }
+}

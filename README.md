@@ -53,6 +53,32 @@ npm run dev
 
 Open `http://localhost:3000`. The home page reports whether it can reach the API at `GET /api/health`. If `BACKEND_URL` is missing or invalid, the page tells you how to configure it. Restart Next.js after changing `client/.env`.
 
+## Test 42 and Google sign-in
+
+Copy the auth server's local environment template and generate a session secret.
+
+```sh
+cp auth-server/.env.example auth-server/.env
+openssl rand -hex 64
+```
+
+Paste the generated value into `AUTH_SESSION_SECRET` in `auth-server/.env`. Add the client ID and secret for each provider you want to test. You can configure either provider on its own.
+
+Register these exact redirect URIs with your 42 application and Google **Web application** OAuth client. If Google OAuth is in testing mode, add the Google account you plan to use as a test user.
+
+| Provider | Redirect URI |
+| --- | --- |
+| 42 | `http://localhost:4567/auth/marvin/callback` |
+| Google | `http://localhost:4567/auth/google_oauth2/callback` |
+
+```sh
+docker compose up --build auth-server
+```
+
+Open `http://localhost:4567` and select a provider. A successful callback displays the provider user ID and available name and email. Run the Compose command again after changing the `.env` file. Use the same host in your browser and the registered callback URI so the browser can send the login session cookie back.
+
+This local test runs independently of Next.js, Spring Boot, and PostgreSQL. A successful callback verifies the provider identity for the test page. Hypertube account creation and application sessions will be handled by Spring Boot when the services are connected.
+
 ## Verify changes
 
 From the repository root, run the API smoke test and check the frontend.

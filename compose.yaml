@@ -64,5 +64,13 @@ services:
         - action: rebuild
           path: ./client/package-lock.json
 
+  auth-server:
+    profiles: [auth]
+    build: ./auth-server
+    init: true
+    ports:
+      - "127.0.0.1:4567:4567"
+    env_file: ./auth-server/.env
+
 volumes:
   postgres-data:

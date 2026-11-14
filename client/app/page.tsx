@@ -1,4 +1,5 @@
 import { connection } from "next/server";
+import { MovieEdit } from "./components/movie-edit";
 
 async function getApiStatus() {
   const backendUrl = process.env.BACKEND_URL?.trim();
@@ -35,9 +36,10 @@ export default async function Home() {
   const status = await getApiStatus();
 
   return (
-    <main>
-      <h1>Hypertube</h1>
-      <p>{status}</p>
+    <main className="min-h-svh px-page py-16">
+      <h1 className="font-display text-6xl font-bold uppercase tracking-tight">Hypertube</h1>
+      <p className="mt-6 text-muted">{status}</p>
+      <MovieEdit />
     </main>
   );
 }

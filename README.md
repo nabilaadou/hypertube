@@ -59,16 +59,16 @@ Supply the local preview media from the repository root before starting Next.js 
 
 ```sh
 mkdir -p client/public/cinema
-cp design-assets/reel.mp4 design-assets/theater.png client/public/cinema/
-cp design-assets/reel-poster.jpg client/public/cinema/
+cp design-assets/edits.mov design-assets/theater.png client/public/cinema/
+ffmpeg -ss 0.3 -i design-assets/edits.mov -frames:v 1 -vf scale=1280:-2 client/public/cinema/reel-poster.jpg
 cp models/private-home-cinema-textured.glb client/public/cinema/
 ```
 
-If your still is named `reel-poster.jpg.jpeg`, copy it as `client/public/cinema/reel-poster.jpg`. The retextured runtime model is already in the repository. The reel and render are provided separately. Keep the served copies and any editable source media in ignored directories.
+The FFmpeg command is optional and makes a loading still from the edit. The retextured runtime model is already in the repository. The reel and render are provided separately. Keep the served copies and any editable source media in ignored directories.
 
 For external hosting, set the optional `NEXT_PUBLIC_CINEMA_*` URLs in `client/.env` before starting or building Next.js. The reel host must support byte-range requests and allow cross-origin access from the site for the WebGL video texture. The model host must also allow cross-origin access. Keep the fallback room image at its original 1440 × 900 framing and use the retextured model's `Projection screen` mesh.
 
-The first downward scroll starts a timed 850 ms reveal, followed by one viewport of scroll travel before the diagonal wipe. Keep scrolling from the screening room to see the poster move into Best Picture, then continue past the last film to the Hypertube statement. Menu links and year buttons give direct access. Opening reel in the menu replays the fullscreen view. Reduced-motion users get the same content in a vertical layout with manual reel playback.
+The first downward scroll starts a timed 850 ms reveal, followed by one viewport of scroll travel before the diagonal wipe. Keep scrolling from the screening room to see the poster move into Best Picture, then continue past the last film to the Hypertube statement. Scroll back to the start of the screening room, then scroll up again to expand the same playing edit back to fullscreen. Reduced-motion users get the same content in a vertical layout with manual reel playback.
 
 The preview follows the reel, cinema, and poster choreography from `design.html`. The live JJettas site stayed on its loading screen during review, so the framing and transition timing use the prototype as the reference.
 

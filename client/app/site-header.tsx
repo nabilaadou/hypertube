@@ -1,17 +1,9 @@
 import Link from "next/link";
 
-export function SiteHeader({ onOpening }: { onOpening?: () => void }) {
+export function SiteHeader() {
   return (
     <header className="site-header">
-      <Link
-        href="/"
-        className="brand"
-        onClick={onOpening && ((event) => {
-          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-          event.preventDefault();
-          onOpening();
-        })}
-      >
+      <Link href="/" className="brand">
         <span className="brand-mark" aria-hidden="true">H</span>
         Hypertube
       </Link>

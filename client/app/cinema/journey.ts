@@ -4,8 +4,6 @@ import Lenis from "lenis";
 import { films } from "./films";
 import { fallbackScreen, theaterFrame } from "./framing";
 
-export type JourneyAction = (destination: string) => void;
-
 const HOLD = 1;
 const HANDOFF = 1.55;
 const FILM_STEP = 0.82;
@@ -20,7 +18,6 @@ export function setupJourney(
   root: HTMLElement,
   runway: HTMLElement,
   video: HTMLVideoElement,
-  registerAction: (action: JourneyAction) => void,
 ) {
   const motion = matchMedia("(prefers-reduced-motion: reduce)");
   function element<T extends HTMLElement = HTMLElement>(selector: string): T {
@@ -36,13 +33,13 @@ export function setupJourney(
   const canvas = element<HTMLCanvasElement>(".room-canvas");
   const awards = element(".awards-heading");
   const backdrop = element(".awards-backdrop");
-  const years = element(".year-nav");
+  const years = element(".ceremony-years");
   const statement = element(".statement");
   const quote = element(".statement-copy");
   const quoteText = element("#statement-title > span");
   const controls = runway.querySelector<HTMLElement>(".reel-controls");
   const cards = Array.from(runway.querySelectorAll<HTMLElement>(".film-card"));
-  const yearButtons = years.querySelectorAll("button");
+  const yearLabels = years.querySelectorAll("li");
 
   let stop = () => {};
   const configure = () => {
@@ -50,7 +47,6 @@ export function setupJourney(
 
     if (motion.matches) {
       video.pause();
-      registerAction((destination) => document.getElementById(destination)?.scrollIntoView());
       return;
     }
 
@@ -64,7 +60,7 @@ export function setupJourney(
     const lenis = new Lenis({ wrapper: root, content: runway, autoRaf: false, autoResize: false });
     const abort = new AbortController();
     const input = { signal: abort.signal, capture: true, passive: false };
-    let state: "opening" | "revealing" | "cinema" = "opening";
+    let state: "opening" | "revealing" | "cinema" | "returning" = "opening";
     let distance = 0;
     let width = 1;
     let height = 1;
@@ -74,7 +70,9 @@ export function setupJourney(
     let timer: ReturnType<typeof setTimeout> | undefined;
     let roomScene: ReturnType<typeof import("./theater").createTheater> | undefined;
     let holdingInput = false;
-    let touchY: number | undefined;
+    let touch: { x: number; y: number; atTop: boolean } | undefined;
+    let lastWheelTime = -Infinity;
+    let lastWheelDirection = 0;
     let currentYear: number | undefined;
     let playbackAllowed = false;
     const progress = { pull: 0 };
@@ -134,22 +132,30 @@ export function setupJourney(
       backdrop.style.clipPath = `polygon(0 ${wipe}%, 100% ${wipe - 23 * handoff}%, 100% 100%, 0 100%)`;
       const labels = range(handoff, 0.56, 0.95) * (1 - out);
       setVisible(awards, labels, labels > 0.75);
-      setVisible(years, labels, labels > 0.75);
+      setVisible(years, labels);
       const activeYear = Math.min(films.length - 1, Math.round(travel));
       if (currentYear !== activeYear) {
-        yearButtons[currentYear ?? -1]?.removeAttribute("aria-current");
-        yearButtons[activeYear]?.setAttribute("aria-current", "true");
+        yearLabels[currentYear ?? -1]?.removeAttribute("aria-current");
+        yearLabels[activeYear]?.setAttribute("aria-current", "true");
         currentYear = activeYear;
       }
 
-      const startScale = mobile ? 0.56 : 0.66;
+      const move = smooth(handoff);
+      const art = theaterFrame(width, height);
+      // Align the flat poster with the left panel in each 1440 × 900 room view.
+      const wallCenter = art.x + (modelReady ? 287 : 292) * art.scale;
+      const wallWidth = (modelReady ? 112 : 105) * art.scale;
+      const onWall = !mobile && wallCenter > wallWidth / 2 + 8;
+      const startScale = onWall ? wallWidth / cardWidth : mobile ? 0.56 : 0.66;
       const targetX = width * (mobile ? 0.12 : 0.19);
       const gap = mobile ? Math.max(cardWidth + 20, width * 0.64) : width * 0.34;
-      const posterTop = Math.min(height * (mobile ? 0.81 : 0.84) - cardHeight * startScale, height - cardHeight - 54);
+      const startX = onWall ? wallCenter - wallWidth / 2 : width * 0.048;
+      const posterTop = onWall
+        ? art.y + (modelReady ? 320 : 336) * art.scale
+        : Math.min(height * (mobile ? 0.81 : 0.84) - cardHeight * startScale, height - cardHeight - 54);
       const trackTop = Math.min(height * (mobile ? 0.34 : 0.33), Math.max(100, height - cardHeight - 100));
       for (const [index, card] of cards.entries()) {
-        const move = smooth(handoff);
-        const x = (index ? targetX + index * gap : mix(width * 0.048, targetX, move)) - gap * travel;
+        const x = (index ? targetX + index * gap : mix(startX, targetX, move)) - gap * travel;
         const y = index ? trackTop + (mobile ? 0 : (index % 3) * height * 0.045) : mix(posterTop, trackTop, move);
         const scale = index ? 1 : mix(startScale, 1, move);
         const opacity = (index ? range(handoff, 0.57, 1) : range(pull, 0.48, 0.96)) * (1 - out);
@@ -160,11 +166,14 @@ export function setupJourney(
           y,
           scale,
           rotate: index ? 0 : -7 * Math.sin(move * Math.PI),
+          skewY: !index && onWall ? (modelReady ? 7 : 3) * (1 - move) : 0,
+          scaleX: !index && onWall ? scale * mix(0.78, 1, move) : scale,
           opacity,
           visibility: visible ? "visible" : "hidden",
         });
         card.inert = !visible || !fullyVisible || opacity < 0.72;
       }
+      root.style.setProperty("--poster-lift", String(move));
       root.style.setProperty("--caption-alpha", String(range(handoff, 0.48, 0.97)));
       setVisible(statement, out, out === 1);
       const settle = range(distance, STATEMENT + 0.29, END);
@@ -195,9 +204,9 @@ export function setupJourney(
     }
 
     function releaseInput() {
-      if (state !== "cinema" || touchY !== undefined) return;
+      if (state === "revealing" || state === "returning" || touch) return;
       holdingInput = false;
-      lenis.start();
+      if (state === "cinema") lenis.start();
     }
 
     function waitForQuiet() {
@@ -205,20 +214,22 @@ export function setupJourney(
       timer = setTimeout(releaseInput, INPUT_QUIET);
     }
 
-    function enterCinema() {
-      if (state !== "opening") return;
-      state = "revealing";
+    function transition(destination: "cinema" | "opening") {
+      const entering = destination === "cinema";
+      state = entering ? "revealing" : "returning";
       holdingInput = true;
-      if (opening.contains(document.activeElement)) {
+      lenis.stop();
+      lenis.scrollTo(0, { immediate: true, force: true });
+      if (!entering && cards[0].contains(document.activeElement)) {
         runway.focus({ preventScroll: true });
       }
       reveal = gsap.to(progress, {
-        pull: 1,
-        duration: 0.85,
+        pull: entering ? 1 : 0,
+        duration: entering ? 0.85 : 0.72,
         ease: "power1.inOut",
         onUpdate: render,
         onComplete: () => {
-          state = "cinema";
+          state = destination;
           render();
           waitForQuiet();
         },
@@ -226,28 +237,54 @@ export function setupJourney(
       render();
     }
 
+    function handleDirection(direction: number, atTop: boolean) {
+      if (holdingInput) {
+        waitForQuiet();
+        return true;
+      }
+      if (state === "opening") {
+        if (direction > 0) transition("cinema");
+        return true;
+      }
+      if (direction < 0 && atTop) {
+        transition("opening");
+        return true;
+      }
+      return false;
+    }
+
     function wheel(event: WheelEvent) {
       if (root.querySelector("dialog[open]")) return;
       if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY) || event.deltaY === 0) return;
-      if (state === "cinema" && !holdingInput) return;
-      event.preventDefault();
-      if (event.deltaY > 0) enterCinema();
-      if (holdingInput) waitForQuiet();
+      const now = performance.now();
+      const direction = Math.sign(event.deltaY);
+      const fresh = direction !== lastWheelDirection || now - lastWheelTime > INPUT_QUIET;
+      lastWheelDirection = direction;
+      lastWheelTime = now;
+      if (handleDirection(direction, fresh && lenis.actualScroll <= 1)) event.preventDefault();
     }
 
     function touchStart(event: TouchEvent) {
-      touchY = event.touches.length === 1 ? event.touches[0].clientY : undefined;
+      const first = event.touches[0];
+      touch = event.touches.length === 1
+        ? { x: first.clientX, y: first.clientY, atTop: lenis.actualScroll <= 1 }
+        : undefined;
     }
 
     function touchMove(event: TouchEvent) {
-      if (root.querySelector("dialog[open]")) return;
-      if (touchY === undefined || event.touches.length !== 1 || (state === "cinema" && !holdingInput)) return;
-      if (touchY - event.touches[0].clientY > 10) enterCinema();
-      if (state !== "cinema" || holdingInput) event.preventDefault();
+      if (root.querySelector("dialog[open]") || !touch || event.touches.length !== 1) return;
+      if (holdingInput) {
+        event.preventDefault();
+        return;
+      }
+      const point = event.touches[0];
+      const deltaY = touch.y - point.clientY;
+      if (Math.abs(deltaY) <= Math.max(10, Math.abs(touch.x - point.clientX))) return;
+      if (handleDirection(deltaY, touch.atTop)) event.preventDefault();
     }
 
     function touchEnd() {
-      touchY = undefined;
+      touch = undefined;
       if (holdingInput) waitForQuiet();
     }
 
@@ -255,18 +292,19 @@ export function setupJourney(
       if (event.altKey || event.ctrlKey || event.metaKey || root.querySelector("dialog[open]")) return;
       if (event.target instanceof Element && event.target.closest("input, textarea, select, [contenteditable]")) return;
       if (event.key === " " && event.target instanceof Element && event.target.closest("button, a")) return;
-      if (!["ArrowDown", "PageDown", "End", " "].includes(event.key) || event.shiftKey) return;
-      if (state === "cinema" && !holdingInput) {
-        event.preventDefault();
-        if (event.repeat) return;
-        // Give keyboard input the same bounded travel as a fresh scroll gesture.
-        const step = event.key === "ArrowDown" ? 0.18 : 0.72;
-        lenis.scrollTo(lenis.targetScroll + step * height, { duration: 0.42 });
+      const up = ["ArrowUp", "PageUp", "Home"].includes(event.key) || (event.key === " " && event.shiftKey);
+      const down = ["ArrowDown", "PageDown", "End"].includes(event.key) || (event.key === " " && !event.shiftKey);
+      if (!up && !down) return;
+      event.preventDefault();
+      if (event.repeat) {
+        if (holdingInput) waitForQuiet();
         return;
       }
-      event.preventDefault();
-      if (!event.repeat) enterCinema();
-      if (holdingInput) waitForQuiet();
+      const direction = up ? -1 : 1;
+      if (handleDirection(direction, lenis.actualScroll <= 1)) return;
+      const step = ["ArrowUp", "ArrowDown"].includes(event.key) ? 0.18 : 0.72;
+      const destination = event.key === "Home" ? 0 : lenis.targetScroll + direction * step * height;
+      lenis.scrollTo(destination, { duration: 0.42 });
     }
 
     const scroll = ScrollTrigger.create({
@@ -286,25 +324,6 @@ export function setupJourney(
         roomScene?.draw(progress.pull === 1);
       }
     };
-
-    registerAction((destination) => {
-      if (destination === "theater" && state !== "cinema") {
-        enterCinema();
-        return;
-      }
-      runway.focus({ preventScroll: true });
-      clearTimeout(timer);
-      reveal?.kill();
-      holdingInput = false;
-      state = destination === "opening" ? "opening" : "cinema";
-      progress.pull = state === "opening" ? 0 : 1;
-      lenis.start();
-      const index = films.findIndex(({ year }) => String(year) === destination);
-      const target = index >= 0 ? HOLD + HANDOFF + index * FILM_STEP : destination === "films" ? HOLD + HANDOFF : destination === "statement" ? END : 0;
-      lenis.scrollTo(target * height, { immediate: true });
-      if (state === "opening") lenis.stop();
-      render();
-    });
 
     lenis.stop();
     root.addEventListener("wheel", wheel, input);
@@ -351,8 +370,9 @@ export function setupJourney(
       root.removeAttribute("data-scene");
       root.scrollTop = 0;
       root.style.removeProperty("--caption-alpha");
+      root.style.removeProperty("--poster-lift");
       reel.removeAttribute("data-fullscreen");
-      yearButtons[currentYear ?? -1]?.removeAttribute("aria-current");
+      yearLabels[currentYear ?? -1]?.removeAttribute("aria-current");
       gsap.set([reel, quote, ...cards], { clearProps: "transform" });
       for (const element of [runway, opening, reel, video, theater, room, canvas, awards, backdrop, years, statement, quote, quoteText, controls, ...cards]) {
         if (element === room) {

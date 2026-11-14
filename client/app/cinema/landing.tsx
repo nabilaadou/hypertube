@@ -4,15 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { SiteHeader } from "../site-header";
 import { type Film, films, media } from "./films";
 import { Screening } from "./screening";
-import { type JourneyAction, setupJourney } from "./journey";
+import { setupJourney } from "./journey";
 
 export function Landing() {
   const root = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLElement>(null);
   const video = useRef<HTMLVideoElement>(null);
-  const journey = useRef<JourneyAction>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const [menu, setMenu] = useState(false);
   const [film, setFilm] = useState<Film | null>(null);
   const [playing, setPlaying] = useState(false);
   const [sound, setSound] = useState(false);
@@ -23,13 +21,7 @@ export function Landing() {
     const player = video.current;
     if (!container || !stage.current || !player) return;
     if (player.error) setReelFailed(true);
-    const cleanup = setupJourney(container, stage.current, player, (action) => {
-      journey.current = action;
-    });
-    return () => {
-      journey.current = null;
-      cleanup();
-    };
+    return setupJourney(container, stage.current, player);
   }, []);
 
   useEffect(() => {
@@ -41,15 +33,6 @@ export function Landing() {
       if (resume && player && !document.hidden) void player.play().catch(() => {});
     };
   }, [film]);
-
-  function navigate(destination: string) {
-    setMenu(false);
-    if (journey.current) {
-      journey.current(destination);
-      return;
-    }
-    document.getElementById(destination)?.scrollIntoView();
-  }
 
   function toggleReel() {
     const player = video.current;
@@ -78,22 +61,7 @@ export function Landing() {
 
   return (
     <div className="landing" ref={root}>
-      <SiteHeader onOpening={() => navigate("opening")} />
-      <fieldset className="journey-nav" aria-label="Section menu" onKeyDown={(event) => {
-        if (event.key !== "Escape" || !menu) return;
-        setMenu(false);
-        document.getElementById("journey-menu")?.focus();
-      }}>
-        <button id="journey-menu" className="outline-button" type="button" aria-expanded={menu} aria-controls="journey-links" onClick={() => setMenu(!menu)}>
-          Menu
-        </button>
-        <nav id="journey-links" aria-label="Explore Hypertube" hidden={!menu}>
-          <button type="button" onClick={() => navigate("opening")}>Opening reel</button>
-          <button type="button" onClick={() => navigate("theater")}>Screening room</button>
-          <button type="button" onClick={() => navigate("films")}>Best Picture</button>
-          <button type="button" onClick={() => navigate("statement")}>About Hypertube</button>
-        </nav>
-      </fieldset>
+      <SiteHeader />
       <main id="main-content" className="runway" ref={stage} tabIndex={-1}>
         <div className="cinema-stage">
           <section id="opening" className="opening" aria-labelledby="opening-title">
@@ -114,12 +82,28 @@ export function Landing() {
               />
             </div>
             <div className="opening-copy">
-              <h1 id="opening-title" className="display">Hypertube</h1>
+              <h1 id="opening-title" className="sr-only">Hypertube</h1>
               {reelFailed && <p role="status" className="reel-status">The opening reel is unavailable.</p>}
-              <button className="scroll-cue mono" type="button" onClick={() => navigate("theater")}>
-                Enter the cinema <span aria-hidden="true">↓</span>
-              </button>
+              <span className="sr-only">Scroll down to reveal the screening room.</span>
+              <svg className="scroll-cue" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 3v17m-7-7 7 7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </div>
+            {!reelFailed && (
+              <fieldset className="reel-controls" aria-label="Reel controls">
+                <button className="reel-button" type="button" aria-label={playing ? "Pause reel" : "Play reel"} onClick={toggleReel}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    {playing ? <path d="M6 4h4v16H6zm8 0h4v16h-4z" /> : <path d="M8 4v16l13-8z" />}
+                  </svg>
+                </button>
+                <button className="reel-button" type="button" aria-label="Sound" aria-pressed={sound} onClick={toggleSound}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 9h4l5-4v14l-5-4H3z" />
+                    {sound ? <path d="M15 9a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12" /> : <path d="m16 9 5 6m0-6-5 6" />}
+                  </svg>
+                </button>
+              </fieldset>
+            )}
           </section>
 
           <section id="theater" className="theater" aria-labelledby="theater-title">
@@ -136,11 +120,9 @@ export function Landing() {
               <h2 id="awards-title" className="display">Best Picture</h2>
               <p className="mono">Academy Award winners · 2024–2020</p>
             </div>
-            <fieldset className="year-nav" aria-label="Jump to ceremony year">
-              {films.map(({ year }) => (
-                <button key={year} className="mono" type="button" onClick={() => navigate(String(year))}>{year}</button>
-              ))}
-            </fieldset>
+            <ol className="ceremony-years" aria-label="Ceremony years">
+              {films.map(({ year }) => <li key={year} className="mono">{year}</li>)}
+            </ol>
             <ul className="film-list">
               {films.map((entry) => (
                 <li key={entry.year} id={String(entry.year)} className="film-card">
@@ -178,15 +160,6 @@ export function Landing() {
               <p>Discover unforgettable stories. Revisit the films that stay with you.</p>
             </div>
           </section>
-
-          {!reelFailed && (
-            <fieldset className="reel-controls" aria-label="Reel controls">
-              <button className="outline-button" type="button" onClick={toggleReel}>{playing ? "Pause reel" : "Play reel"}</button>
-              <button className="outline-button" type="button" aria-pressed={sound} onClick={toggleSound}>
-                Sound <span aria-hidden="true">{sound ? "on" : "off"}</span>
-              </button>
-            </fieldset>
-          )}
         </div>
       </main>
       {film && <Screening film={film} onClose={closeScreening} />}

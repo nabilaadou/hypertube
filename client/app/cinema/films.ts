@@ -1,5 +1,5 @@
 export const media = {
-  reel: process.env.NEXT_PUBLIC_CINEMA_REEL || "/cinema/reel.mp4",
+  reel: process.env.NEXT_PUBLIC_CINEMA_REEL || "/cinema/edits.mov",
   still: process.env.NEXT_PUBLIC_CINEMA_STILL || "/cinema/reel-poster.jpg",
   room: process.env.NEXT_PUBLIC_CINEMA_ROOM || "/cinema/theater.png",
   model: process.env.NEXT_PUBLIC_CINEMA_MODEL || "/cinema/private-home-cinema-textured.glb",

@@ -32,3 +32,36 @@
     outline-offset: 4px;
   }
 }
+
+.cinema-stage {
+  container-type: size;
+  --reveal: 0;
+}
+
+.cinema-room {
+  position: absolute;
+  inset: 0;
+  background-color: var(--color-ink);
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  opacity: var(--reveal);
+}
+
+.cinema-screen {
+  /* Screen bounds in the 1440 × 900 theater render. */
+  --room-width: min(100cqw, 160cqh);
+  --room-height: calc(var(--room-width) * 0.625);
+  position: absolute;
+  overflow: hidden;
+  background: var(--color-ink);
+  left: calc(var(--reveal) * (50cqw - var(--room-width) * 243 / 1440));
+  top: calc(var(--reveal) * (50cqh - var(--room-height) * 156 / 900));
+  right: calc(var(--reveal) * (50cqw - var(--room-width) * 269 / 1440));
+  bottom: calc(var(--reveal) * (50cqh - var(--room-height) * 77 / 900));
+}
+
+.cinema-shade,
+.cinema-cue {
+  opacity: calc(1 - var(--reveal));
+}

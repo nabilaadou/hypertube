@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cinemaMedia } from "../data/movies";
+import { useCinemaReveal } from "./use-cinema-reveal";
 
 type Playback = "paused" | "playing" | "unavailable";
 
 const control = "grid min-h-11 cursor-pointer place-items-center rounded-full border border-white/40 bg-black/65 px-4 font-mono text-xs uppercase";
 
 export function MovieEdit() {
+  const { stage, phase, reveal } = useCinemaReveal();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playback, setPlayback] = useState<Playback>("paused");
   const [muted, setMuted] = useState(true);
@@ -39,28 +41,32 @@ export function MovieEdit() {
   }
 
   return (
-    <section id="opening" aria-labelledby="opening-title" className="relative isolate min-h-svh overflow-hidden bg-theater text-paper">
-      <video
-        ref={videoRef}
-        className="absolute inset-0 size-full object-cover object-center"
-        src={cinemaMedia.edit}
-        poster={cinemaMedia.poster}
-        muted
-        loop
-        playsInline
-        preload="metadata"
-        aria-label="Hypertube movie edit"
-        onPlay={() => setPlayback("playing")}
-        onPause={() => setPlayback((state) => state === "unavailable" ? state : "paused")}
-        onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
-        onError={() => setPlayback("unavailable")}
-      />
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-linear-to-b from-black/75 via-transparent to-black/80" />
-      {playback === "unavailable" && (
-        <p role="status" className="absolute inset-0 grid place-items-center bg-theater/80 px-page text-center">
-          The movie edit is unavailable. Please try again later.
-        </p>
-      )}
+    <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} className="cinema-stage relative isolate h-svh overflow-hidden bg-theater text-paper">
+      <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
+      <div className="cinema-screen">
+        <video
+          ref={videoRef}
+          className="absolute inset-0 size-full object-cover object-center"
+          src={cinemaMedia.edit}
+          poster={cinemaMedia.poster}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-label="Hypertube movie edit"
+          onPlay={() => setPlayback("playing")}
+          onPause={() => setPlayback((state) => state === "unavailable" ? state : "paused")}
+          onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
+          onError={() => setPlayback("unavailable")}
+        />
+
+        {playback === "unavailable" && (
+          <p role="status" className="absolute inset-0 grid place-items-center bg-theater/80 px-page text-center">
+            The movie edit is unavailable. Please try again later.
+          </p>
+        )}
+      </div>
+      <div aria-hidden="true" className="cinema-shade pointer-events-none absolute inset-0 bg-linear-to-b from-black/75 via-transparent to-black/80" />
 
       <header className="absolute inset-x-0 top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center px-page py-6 md:py-8">
         <svg aria-hidden="true" viewBox="0 0 40 40" fill="none" className="size-8">
@@ -92,10 +98,14 @@ export function MovieEdit() {
             </button>
           )}
         </div>
-        <a href="#api-status" className={`${control} gap-1 py-2`}>
-          Scroll
-          <span aria-hidden="true" className="size-2 rotate-45 border-r border-b" />
-        </a>
+        <div>
+          {phase !== "cinema" && (
+            <button type="button" aria-disabled={phase !== "fullscreen"} onClick={reveal} className={`${control} cinema-cue gap-1 py-2`}>
+              Scroll
+              <span aria-hidden="true" className="size-2 rotate-45 border-r border-b" />
+            </button>
+          )}
+        </div>
         <div className="justify-self-end">
           {playback !== "unavailable" && (
             <button type="button" aria-label="Sound" aria-pressed={!muted} onClick={toggleSound} className={control}>

@@ -137,7 +137,7 @@ Implementation complete on `cinematic-landing-page`. Lint and production build p
 - [x] The opening shows the user's edit.
 - [x] Loading avoids an unexplained blank screen.
 - [x] The controls are readable over the footage and work with a keyboard.
-- [ ] The composition is approved before the reveal animation begins implementation.
+- [x] The composition is approved before the reveal animation begins implementation.
 
 ## Task 4 — Make the video transition automatically into the screen
 
@@ -155,17 +155,19 @@ The first downward scroll triggers a timed reveal that completes on its own. Dur
 8. Align the video's final corners with the theater screen at supported viewport sizes.
 9. Handle cancellation, reduced motion, and component cleanup so Lenis cannot remain paused after navigation or an interrupted reveal.
 
+The reveal currently aligns the playing video with the screen in the existing theater render. Task 5 replaces that render with the live theater.
+
 ### Starting values to review
 
 The current prototype uses an approximately 850 ms reveal and a brief 180 ms input-quiet interval. Treat these values as adjustable prototype settings. Compare the visual result with JJettas and tune it with the user.
 
 ### Acceptance criteria
 
-- [ ] One downward gesture starts the complete reveal.
-- [ ] Continued scrolling cannot scrub or skip the active reveal.
-- [ ] The video lands precisely in the theater screen and continues playing.
-- [ ] A strong trackpad gesture leaves the cinema visible after the reveal.
-- [ ] Scroll control releases reliably, including after interruption or navigation.
+- [x] One downward gesture starts the complete reveal.
+- [x] Continued scrolling cannot scrub or skip the active reveal.
+- [x] The video lands precisely in the theater screen and continues playing.
+- [x] A strong trackpad gesture leaves the cinema visible after the reveal.
+- [x] Scroll control releases reliably, including after interruption or navigation.
 
 ## Task 5 — Finish the cinema composition and hold
 

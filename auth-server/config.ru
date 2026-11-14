@@ -13,6 +13,15 @@ end
 base_url = origin.to_s.delete_suffix("/")
 session_secret = ENV.fetch("AUTH_SESSION_SECRET", "")
 abort "Set AUTH_SESSION_SECRET to at least 64 bytes. Generate one with openssl rand -hex 64." if session_secret.bytesize < 64
+handoff_secret = ENV.fetch("AUTH_HANDOFF_SECRET", "")
+abort "Set AUTH_HANDOFF_SECRET in the root .env. Generate one with openssl rand -hex 32." if handoff_secret.bytesize < 64
+
+spring_public_url = URI.parse(ENV.fetch("SPRING_PUBLIC_URL", "http://localhost:8080"))
+unless spring_public_url.is_a?(URI::HTTP) && spring_public_url.host == origin.host &&
+       spring_public_url.scheme == origin.scheme && !spring_public_url.userinfo &&
+       spring_public_url.path.empty? && !spring_public_url.query && !spring_public_url.fragment
+  abort "SPRING_PUBLIC_URL must use the same host and scheme as AUTH_BASE_URL, without a path."
+end
 
 providers = {
   "marvin" => ["42", ENV["FORTY_TWO_CLIENT_ID"], ENV["FORTY_TWO_CLIENT_SECRET"]],
@@ -23,6 +32,9 @@ configured = providers.select { |_, (_, id, secret)| !id.to_s.strip.empty? && !s
 AuthServer.set :providers, providers.transform_values(&:first)
 AuthServer.set :configured_providers, configured.keys
 AuthServer.set :base_url, base_url
+AuthServer.set :spring_public_url, spring_public_url
+AuthServer.set :handoff_secret, handoff_secret
+AuthServer.set :handoff_url, URI.join(ENV.fetch("SPRING_INTERNAL_URL", "http://localhost:8080"), "/internal/auth/identities")
 AuthServer.set :host_authorization, { permitted_hosts: [origin.hostname] }
 
 OmniAuth.config.full_host = base_url

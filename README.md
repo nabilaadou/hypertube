@@ -40,8 +40,10 @@ Start the API in one terminal.
 
 ```sh
 cd server
-mvn spring-boot:run
+POSTGRES_PASSWORD=your-local-postgres-password mvn spring-boot:run
 ```
+
+Use a running PostgreSQL instance and set `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, or `POSTGRES_USER` if your connection differs from `localhost:5432`, database `hypertube`, user `hypertube`. Spring Boot runs the database migrations on startup.
 
 Start Next.js in a second terminal.
 
@@ -62,7 +64,7 @@ cp auth-server/.env.example auth-server/.env
 openssl rand -hex 64
 ```
 
-Paste the generated value into `AUTH_SESSION_SECRET` in `auth-server/.env`. Add the client ID and secret for each provider you want to test. You can configure either provider on its own.
+Paste the generated value into `AUTH_SESSION_SECRET` in `auth-server/.env`. Add the client ID and secret for each provider you want to test. You can configure either provider on its own. Run `openssl rand -hex 32` and set `AUTH_HANDOFF_SECRET` in the root `.env` to the output. Compose passes that shared secret to Sinatra and Spring Boot.
 
 Register these exact redirect URIs with your 42 application and Google **Web application** OAuth client. If Google OAuth is in testing mode, add the Google account you plan to use as a test user.
 
@@ -75,9 +77,9 @@ Register these exact redirect URIs with your 42 application and Google **Web app
 docker compose up --build auth-server
 ```
 
-Open `http://localhost:4567` and select a provider. A successful callback displays the provider user ID and available name and email. Run the Compose command again after changing the `.env` file. Use the same host in your browser and the registered callback URI so the browser can send the login session cookie back.
+Open `http://localhost:4567` and select a provider. After a successful callback, Spring Boot saves the user in PostgreSQL, starts a browser session, and redirects to `http://localhost:8080/api/auth/me`. The JSON response contains the database ID, provider, provider user ID, and available name and email. Repeat sign-ins with the same provider account reuse the database ID. `/api/auth/me` returns `401` without a Hypertube session.
 
-This local test runs independently of Next.js, Spring Boot, and PostgreSQL. A successful callback verifies the provider identity for the test page. Hypertube account creation and application sessions will be handled by Spring Boot when the services are connected.
+Run the Compose command again after changing an `.env` file. Open the sign-in page using `localhost` so the browser can send the same cookies to the OAuth callback and Spring Boot. The auth service starts Spring Boot and PostgreSQL as dependencies.
 
 ## Verify changes
 

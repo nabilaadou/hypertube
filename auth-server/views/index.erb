@@ -9,24 +9,10 @@
   <body>
     <main>
       <h1>Hypertube sign-in test</h1>
-      <p>Choose a provider to check what OmniAuth returns.</p>
+      <p>Choose a provider to sign in and see your Hypertube profile.</p>
 
       <% if @failure %>
         <p class="notice" role="alert"><%= @failure == "cancelled" ? "Sign-in was cancelled. Choose a provider to try again." : "Sign-in failed. Try again and check your provider credentials and callback URL if it persists." %></p>
-      <% end %>
-
-      <% if @result %>
-        <section class="result" aria-labelledby="result-title">
-          <h2 id="result-title"><%= h(@result.fetch("provider")) %> callback succeeded</h2>
-          <dl>
-            <dt>Provider user ID</dt>
-            <dd><%= h(@result.fetch("uid")) %></dd>
-            <dt>Name</dt>
-            <dd><%= h(@result.fetch("name").empty? ? "Unavailable" : @result.fetch("name")) %></dd>
-            <dt>Email</dt>
-            <dd><%= h(@result.fetch("email").empty? ? "Unavailable" : @result.fetch("email")) %></dd>
-          </dl>
-        </section>
       <% end %>
 
       <% settings.providers.each do |provider, label| %>

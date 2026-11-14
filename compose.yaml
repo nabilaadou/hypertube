@@ -18,6 +18,10 @@ services:
   server:
     build: ./server
     init: true
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-hypertube}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-hypertube}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-}
     ports:
       - "127.0.0.1:${HYPERTUBE_SERVER_PORT:-8080}:8080"
     depends_on:

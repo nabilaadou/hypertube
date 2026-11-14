@@ -130,3 +130,26 @@
     opacity: 0;
   }
 }
+
+.hypertube-statement {
+  background: radial-gradient(ellipse at 40% 24%, var(--color-timeline), var(--color-quote) 58%, var(--color-theater));
+}
+
+.hypertube-statement::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.27;
+  background:
+    radial-gradient(circle, #f1ede43b 0.5px, transparent 0.9px) 0 0 / 5px 7px,
+    radial-gradient(circle, #0009 0.6px, transparent 1px) 2px 3px / 7px 9px;
+}
+
+@supports (background-clip: text) {
+  .hypertube-statement-title {
+    color: transparent;
+    background: radial-gradient(circle, #f1ede4 0.8px, #ccc0cb 1.2px, #a99ba9 1.55px) 0 0 / 4px 4px;
+    background-clip: text;
+  }
+}

@@ -237,7 +237,7 @@ The timeline uses remotely hosted poster images and YouTube trailers. The traile
 
 ### Steps
 
-1. Request or propose the final Hypertube statement for user approval.
+1. Use the prototype statement “Every film opens another world.” and review the copy with the user.
 2. Use the reference quote section's oversized condensed type, centered layout, and textured purple background.
 3. Retain the prototype's dotted text treatment if approved after comparison with the reference.
 4. Give the text reveal its own readable timing after the timeline ends.
@@ -246,9 +246,9 @@ The timeline uses remotely hosted poster images and YouTube trailers. The traile
 ### Acceptance criteria
 
 - [ ] The content describes Hypertube and has user approval.
-- [ ] The statement remains readable during and after its animation.
-- [ ] The end of the timeline leads naturally into the statement.
-- [ ] This section matches the agreed stopping point.
+- [x] The statement remains readable during and after its animation.
+- [x] The end of the timeline leads naturally into the statement.
+- [x] This section matches the agreed stopping point.
 
 ## Task 9 — Review responsiveness, accessibility, and animation behavior
 

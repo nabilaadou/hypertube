@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Hypertube sign-in test</title>
+    <link rel="stylesheet" href="/test.css">
+  </head>
+  <body>
+    <main>
+      <h1>Hypertube sign-in test</h1>
+      <p>Choose a provider to sign in and see your Hypertube profile.</p>
+
+      <% if @failure %>
+        <p class="notice" role="alert"><%= @failure == "cancelled" ? "Sign-in was cancelled. Choose a provider to try again." : "Sign-in failed. Try again and check your provider credentials and callback URL if it persists." %></p>
+      <% end %>
+
+      <% settings.providers.each do |provider, label| %>
+        <section class="provider">
+          <% if settings.configured_providers.include?(provider) %>
+            <form action="/auth/<%= h(provider) %>" method="post">
+              <input type="hidden" name="authenticity_token" value="<%= h(@csrf) %>">
+              <button type="submit">Continue with <%= h(label) %></button>
+            </form>
+          <% else %>
+            <p class="unconfigured"><strong><%= h(label) %></strong> · Add credentials in <code>auth-server/.env</code></p>
+          <% end %>
+          <p class="callback">Callback <code><%= h(settings.base_url) %>/auth/<%= h(provider) %>/callback</code></p>
+        </section>
+      <% end %>
+    </main>
+  </body>
+</html>

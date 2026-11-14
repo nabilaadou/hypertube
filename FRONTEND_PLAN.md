@@ -32,11 +32,14 @@ Inspect the live reference before describing an animation as an exact match. Tre
 - Use the existing Next.js application in `client/`, React, and TypeScript. Inspect the installed versions and repository conventions before changing dependencies.
 - Use Tailwind CSS for layout, responsive styling, typography, and shared visual tokens.
 - Use GSAP as the main animation controller. Use ScrollTrigger for pinned sections, scroll progress, and timeline movement where appropriate.
+- Use Lenis to smooth the page's native scrolling. Synchronize its scroll events and animation frame loop with GSAP and ScrollTrigger using the current official integration guide. Create and destroy the Lenis instance with the client experience lifecycle.
 - Use Anime.js only when a specific effect benefits from it, such as an isolated text or decorative animation. Give each animated property one owner so GSAP and Anime.js cannot overwrite each other.
 - Use Three.js when the approved theater experience requires real-time geometry, lighting, perspective, or camera movement. Decide whether a React integration is useful after inspecting the client. Adding an integration library is an implementation choice to explain.
 - Keep browser-dependent animation and rendering inside suitable client components. Keep static content and data outside the animation loop where possible.
 
 The existing client already declares Next.js, React, and TypeScript. The inspected package manifest does not yet declare Tailwind CSS, GSAP, Anime.js, or Three.js. Check the current manifest again when implementation starts.
+
+Lenis is part of the agreed scroll animation stack. Check whether the current manifest already declares it when implementation starts. [Lenis documentation](https://lenis.dev/) · [Lenis GSAP integration guide](https://github.com/darkroomengineering/lenis#gsap-scrolltrigger)
 
 ## Use the existing prototype and assets
 
@@ -93,16 +96,18 @@ Use these sources to find effects, components, and assets that support the appro
 
 1. Configure Tailwind CSS using an approach compatible with the existing client.
 2. Add GSAP and the React integration needed by the chosen implementation.
-3. Add Anime.js or Three.js when an approved task requires them.
-4. Define shared colors, typography, spacing, and responsive values using the prototype as the visual starting point.
-5. Create a small movie-data representation containing title, poster, year, award label, and trailer reference.
-6. Establish local media URLs and a visible fallback for missing files.
-7. Confirm that large assets are ignored and excluded from staged changes.
+3. Add Lenis and plan one animation-frame loop shared with GSAP and ScrollTrigger.
+4. Add Anime.js or Three.js when an approved task requires them.
+5. Define shared colors, typography, spacing, and responsive values using the prototype as the visual starting point.
+6. Create a small movie-data representation containing title, poster, year, award label, and trailer reference.
+7. Establish local media URLs and a visible fallback for missing files.
+8. Confirm that large assets are ignored and excluded from staged changes.
 
 ### Acceptance criteria
 
 - [ ] The existing Next.js client runs with the selected styling setup.
 - [ ] Shared styles reflect the agreed palette.
+- [ ] Lenis and ScrollTrigger use one synchronized animation loop, with no competing scroll smoothing.
 - [ ] The user's video and theater media load through the selected local setup.
 - [ ] Missing media produces a usable fallback.
 - [ ] The proposed commit contains only intentional source and configuration changes.
@@ -133,12 +138,13 @@ The first downward scroll triggers a timed reveal that completes on its own. Dur
 
 1. Represent the opening, active reveal, and settled cinema as explicit interaction states.
 2. Trigger the reveal from the first intentional downward scroll or the visible scroll action.
-3. Animate the fullscreen video into the theater screen while the theater becomes visible around it.
-4. Keep playback continuous so the edit retains its current frame and playback position.
-5. Consume wheel, touch, and relevant keyboard navigation input during the reveal without breaking ordinary control activation.
-6. Handle trackpad momentum so the gesture that started the reveal cannot immediately skip the cinema hold.
-7. Release scroll control when the animation completes and the input gesture has settled.
+3. Pause Lenis while the timed fullscreen reveal runs so inertia from the triggering gesture cannot scroll past the theater.
+4. Animate the fullscreen video into the theater screen while the theater becomes visible around it.
+5. Keep playback continuous so the edit retains its current frame and playback position.
+6. Consume wheel, touch, and relevant keyboard navigation input during the reveal without breaking ordinary control activation.
+7. Resume Lenis when the reveal completes and the triggering input has settled.
 8. Align the video's final corners with the theater screen at supported viewport sizes.
+9. Handle cancellation, reduced motion, and component cleanup so Lenis cannot remain paused after navigation or an interrupted reveal.
 
 ### Starting values to review
 

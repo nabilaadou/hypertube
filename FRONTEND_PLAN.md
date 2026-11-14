@@ -134,9 +134,9 @@ Implementation complete on `cinematic-landing-page`. Lint and production build p
 
 ### Acceptance criteria
 
-- [ ] The opening shows the user's edit.
-- [ ] Loading avoids an unexplained blank screen.
-- [ ] The controls are readable over the footage and work with a keyboard.
+- [x] The opening shows the user's edit.
+- [x] Loading avoids an unexplained blank screen.
+- [x] The controls are readable over the footage and work with a keyboard.
 - [ ] The composition is approved before the reveal animation begins implementation.
 
 ## Task 4 — Make the video transition automatically into the screen

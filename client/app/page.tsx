@@ -36,10 +36,12 @@ export default async function Home() {
   const status = await getApiStatus();
 
   return (
-    <main className="min-h-svh px-page py-16">
-      <h1 className="font-display text-6xl font-bold uppercase tracking-tight">Hypertube</h1>
-      <p className="mt-6 text-muted">{status}</p>
+    <main>
       <MovieEdit />
+      <section id="api-status" aria-labelledby="api-status-title" tabIndex={-1} className="px-page py-10">
+        <h2 id="api-status-title" className="font-display text-2xl font-bold uppercase">API status</h2>
+        <p className="mt-2 text-muted">{status}</p>
+      </section>
     </main>
   );
 }

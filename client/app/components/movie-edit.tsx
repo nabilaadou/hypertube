@@ -1,5 +1,8 @@
 "use client";
 
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -9,6 +12,11 @@ import { useCinemaReveal } from "./use-cinema-reveal";
 const CinemaScene = dynamic(() => import("./cinema-scene"), { ssr: false });
 
 const featured = draftMovies[0];
+const cinemaHoldViewports = 1;
+const handoffViewports = 1.35;
+const timelineHoldViewports = 0.5;
+
+gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 type Playback = "paused" | "playing" | "unavailable";
 
@@ -16,9 +24,41 @@ const control = "grid min-h-11 cursor-pointer place-items-center rounded-full bo
 
 export function MovieEdit() {
   const { stage, phase, reveal } = useCinemaReveal();
+  const runway = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playback, setPlayback] = useState<Playback>("paused");
   const [muted, setMuted] = useState(true);
+
+  useGSAP(() => {
+    const section = stage.current;
+    const scrollArea = runway.current;
+    if (!section || !scrollArea) return;
+
+    const motion = gsap.matchMedia();
+    motion.add({
+      standard: "(prefers-reduced-motion: no-preference)",
+      reduced: "(prefers-reduced-motion: reduce)",
+    }, ({ conditions }) => {
+      const reduced = conditions?.reduced;
+      const animation = gsap.timeline({
+        scrollTrigger: {
+          trigger: scrollArea,
+          start: () => `top+=${section.clientHeight * cinemaHoldViewports} top`,
+          end: () => `+=${section.clientHeight * handoffViewports}`,
+          scrub: true,
+        },
+      });
+
+      animation.to(section, { "--wipe": 1, duration: 1, ease: reduced ? "steps(1)" : "none" });
+      if (reduced) {
+        animation.set(section, { "--poster-travel": 1, "--timeline-labels": 1 }, 1);
+      } else {
+        animation.to(section, { "--poster-travel": 1, duration: 0.73, ease: "power2.inOut" }, 0.2);
+        animation.to(section, { "--timeline-labels": 1, duration: 0.34, ease: "power1.out" }, 0.57);
+      }
+    });
+    return () => motion.revert();
+  }, { scope: runway });
 
   useEffect(() => {
     const video = videoRef.current;
@@ -47,7 +87,7 @@ export function MovieEdit() {
   }
 
   return (
-    <div className="min-h-[200svh]">
+    <div ref={runway} style={{ minHeight: `${(1 + cinemaHoldViewports + handoffViewports + timelineHoldViewports) * 100}svh` }}>
       <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
         <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
         <div className="cinema-screen">
@@ -98,8 +138,18 @@ export function MovieEdit() {
           </details>
         </header>
 
+        <section aria-labelledby="timeline-title" className="cinema-timeline absolute inset-0">
+          <div className="cinema-timeline-grid absolute inset-0" aria-hidden="true" />
+          <h2 id="timeline-title" className="cinema-timeline-label absolute top-[10%] left-page font-display text-[clamp(3.5rem,14vw,15rem)] leading-none font-black whitespace-nowrap uppercase text-timeline">
+            {featured.award}
+          </h2>
+          <p className="cinema-timeline-label absolute bottom-[10%] left-page font-display text-[clamp(3rem,7vw,7rem)] leading-none font-bold text-paper/35">
+            {featured.awardYear}
+          </p>
+        </section>
+
         {phase === "cinema" && (
-          <figure className="absolute bottom-[16vh] left-page grid w-[clamp(5rem,13vw,11rem)] gap-2 drop-shadow-lg">
+          <figure className="cinema-featured-poster absolute grid gap-2 drop-shadow-lg">
             <Image
               src={featured.poster}
               alt=""

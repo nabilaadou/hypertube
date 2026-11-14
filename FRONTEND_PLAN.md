@@ -189,7 +189,7 @@ The current prototype uses an approximately 850 ms reveal and a brief 180 ms inp
 - [x] The video stays aligned with the screen throughout the hold.
 - [x] The featured poster stays visible on the left.
 - [x] The first scroll gesture cannot consume the cinema hold accidentally.
-- [ ] The user approves the hold duration and theater framing.
+- [x] The user approves the hold duration and theater framing.
 
 ## Task 6 — Carry the left poster into the movie timeline
 
@@ -204,11 +204,11 @@ The current prototype uses an approximately 850 ms reveal and a brief 180 ms inp
 
 ### Acceptance criteria
 
-- [ ] The wipe starts after the cinema hold.
-- [ ] The featured poster visibly becomes part of the timeline.
-- [ ] The cinema and timeline have deliberate overlap during the transition.
-- [ ] Scrolling in either direction preserves a continuous composition.
-- [ ] Resizing does not displace the poster from its intended destination.
+- [x] The wipe starts after the cinema hold.
+- [x] The featured poster visibly becomes part of the timeline.
+- [x] The cinema and timeline have deliberate overlap during the transition.
+- [x] Scrolling in either direction preserves a continuous composition.
+- [x] Resizing does not displace the poster from its intended destination.
 
 ## Task 7 — Build the awards timeline and trailer action
 

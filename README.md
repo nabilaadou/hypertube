@@ -51,7 +51,28 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`. The home page reports whether it can reach the API at `GET /api/health`. If `BACKEND_URL` is missing or invalid, the page tells you how to configure it. Restart Next.js after changing `client/.env`.
+Open `http://localhost:3000`. The public landing page also runs without the API.
+
+## Preview the cinematic landing page
+
+Supply the local preview media from the repository root before starting Next.js or building the client image.
+
+```sh
+mkdir -p client/public/cinema
+cp design-assets/reel.mp4 design-assets/theater.png client/public/cinema/
+cp design-assets/reel-poster.jpg client/public/cinema/
+cp models/private-home-cinema-textured.glb client/public/cinema/
+```
+
+If your still is named `reel-poster.jpg.jpeg`, copy it as `client/public/cinema/reel-poster.jpg`. The retextured runtime model is already in the repository. The reel and render are provided separately. Keep the served copies and any editable source media in ignored directories.
+
+For external hosting, set the optional `NEXT_PUBLIC_CINEMA_*` URLs in `client/.env` before starting or building Next.js. The reel host must support byte-range requests and allow cross-origin access from the site for the WebGL video texture. The model host must also allow cross-origin access. Keep the fallback room image at its original 1440 × 900 framing and use the retextured model's `Projection screen` mesh.
+
+The first downward scroll starts a timed 850 ms reveal, followed by one viewport of scroll travel before the diagonal wipe. Keep scrolling from the screening room to see the poster move into Best Picture, then continue past the last film to the Hypertube statement. Menu links and year buttons give direct access. Opening reel in the menu replays the fullscreen view. Reduced-motion users get the same content in a vertical layout with manual reel playback.
+
+The preview follows the reel, cinema, and poster choreography from `design.html`. The live JJettas site stayed on its loading screen during review, so the framing and transition timing use the prototype as the reference.
+
+The preview uses the draft film selection, the Academy Awards ceremony years 2024–2020, and the prototype statement. Film descriptions, poster paths, and trailer IDs are edited in `client/app/cinema/films.ts`. The prototype posters are served by TMDB and the trailers by YouTube. The sign-in and registration destinations are public entry pages pending the account flow.
 
 ## Verify changes
 
@@ -62,4 +83,4 @@ From the repository root, run the API smoke test and check the frontend.
 (cd client && npm ci && npm run lint && npm run build)
 ```
 
-With both apps running, `curl -fsS http://localhost:8080/api/health` should return `{"status":"UP"}` and the home page should show “API is online.” To check the configuration diagnostic, clear `BACKEND_URL` in `client/.env`, restart Next.js, and reload the page.
+With the API running, `curl -fsS http://localhost:8080/api/health` should return `{"status":"UP"}`. For a browser smoke check, activate the cinema with a large first scroll, verify the room stays visible, then scroll to Best Picture and the closing statement. Open a film with the keyboard, close it with Escape, and check that focus returns to its poster.

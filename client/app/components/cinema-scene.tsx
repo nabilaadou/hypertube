@@ -17,14 +17,16 @@ import {
   Scene,
   SRGBColorSpace,
   Texture,
+  TextureLoader,
   Vector3,
   VideoTexture,
   WebGLRenderer,
 } from "three";
 import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { cinemaMedia } from "../data/movies";
+import { bestPictureWinners, cinemaMedia } from "../data/movies";
 import { projectionScreenAspect, type ScreenCorners } from "./cinema-projection";
+import { createCinemaWallPoster } from "./cinema-wall-poster";
 
 function disposeModel(model: Object3D) {
   model.traverse((object) => {
@@ -44,10 +46,12 @@ export default function CinemaScene({
   videoRef,
   active,
   onProjection,
+  onWallPosterProjection,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   active: boolean;
   onProjection: (corners: ScreenCorners | null) => void;
+  onWallPosterProjection: (corners: ScreenCorners | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawRef = useRef<(() => void) | null>(null);
@@ -106,6 +110,7 @@ export default function CinemaScene({
     const screenMaterial = new MeshBasicMaterial({ map: texture, side: DoubleSide, toneMapped: false });
     let model: Object3D | undefined;
     let screenMesh: Mesh | undefined;
+    let wallArtwork: Mesh | undefined;
     let firstFrame = true;
 
     function draw() {
@@ -151,16 +156,18 @@ export default function CinemaScene({
       camera.updateProjectionMatrix();
       if (screenMesh && canvas.parentElement) {
         const stage = canvas.parentElement;
-        const position = screenMesh.geometry.getAttribute("position");
-        screenMesh.updateWorldMatrix(true, false);
         camera.updateMatrixWorld();
-        function project(index: number) {
-          const point = new Vector3().fromBufferAttribute(position, index);
-          screenMesh?.localToWorld(point);
-          point.project(camera);
+        function project(mesh: Mesh, index: number) {
+          const point = new Vector3().fromBufferAttribute(mesh.geometry.getAttribute("position"), index);
+          mesh.localToWorld(point).project(camera);
           return { x: (stage.clientWidth + point.x * width) / 2, y: (stage.clientHeight - point.y * height) / 2 };
         }
-        onProjection([project(3), project(2), project(0), project(1)]);
+        onProjection([project(screenMesh, 3), project(screenMesh, 2), project(screenMesh, 0), project(screenMesh, 1)]);
+        if (wallArtwork) {
+          const corners: ScreenCorners = [project(wallArtwork, 0), project(wallArtwork, 1), project(wallArtwork, 3), project(wallArtwork, 2)];
+          const inView = corners.every(({ x, y }) => x >= 0 && x <= stage.clientWidth && y >= 0 && y <= stage.clientHeight);
+          onWallPosterProjection(inView ? corners : null);
+        }
       }
       draw();
     }
@@ -213,6 +220,18 @@ export default function CinemaScene({
       scene.add(theater, screenLight);
       resize();
       drawRef.current = draw;
+
+      void new TextureLoader().loadAsync(bestPictureWinners[0].poster).then((poster) => {
+        if (events.signal.aborted) {
+          poster.dispose();
+          return;
+        }
+
+        const { group, artwork } = createCinemaWallPoster(poster);
+        wallArtwork = artwork;
+        theater.add(group);
+        resize();
+      }).catch(() => {});
     }).catch(() => {});
 
     return () => {
@@ -226,8 +245,9 @@ export default function CinemaScene({
       }
       renderer.dispose();
       onProjection(null);
+      onWallPosterProjection(null);
     };
-  }, [videoRef, onProjection]);
+  }, [videoRef, onProjection, onWallPosterProjection]);
 
   useEffect(() => {
     const video = videoRef.current;

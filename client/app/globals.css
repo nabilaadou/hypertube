@@ -98,6 +98,9 @@
 .cinema-stage {
   --wipe: 0;
   --poster-travel: 0;
+  --featured-poster-opacity: 0;
+  --featured-poster-visibility: hidden;
+  --wall-poster-visibility: visible;
   --timeline-labels: 0;
   --poster-turn: 0;
   --track-index: 0;
@@ -171,12 +174,19 @@
   transform: perspective(850px) rotateY(8deg) rotate(-2deg);
 }
 
+.cinema-wall-poster-trigger {
+  visibility: var(--wall-poster-visibility);
+}
+
 .cinema-track-card.cinema-featured-poster {
+  --featured-left: var(--spacing-page);
+  --featured-bottom: 16cqh;
   --featured-width: clamp(5rem, 13cqw, 11rem);
-  left: calc(var(--spacing-page) + var(--poster-travel) * (52cqw - var(--spacing-page)));
-  bottom: calc(16cqh + var(--poster-travel) * 22cqh);
+  left: calc(var(--featured-left) + var(--poster-travel) * (52cqw - var(--featured-left)));
+  bottom: calc(var(--featured-bottom) + var(--poster-travel) * (38cqh - var(--featured-bottom)));
   width: calc(var(--featured-width) + var(--poster-travel) * (var(--timeline-width) - var(--featured-width)));
-  opacity: 1;
+  opacity: var(--featured-poster-opacity);
+  visibility: var(--featured-poster-visibility);
   translate: calc(-1 * var(--track-index) * var(--card-step));
   transform: perspective(850px) rotateY(calc(var(--poster-turn) * 1deg));
 }

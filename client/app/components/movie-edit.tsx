@@ -53,6 +53,7 @@ export function MovieEdit() {
   const { stage, phase } = useCinemaReveal(videoRef, updateProjection);
   const runway = useRef<HTMLDivElement>(null);
   const lenis = useLenis();
+  const [wallPosterCorners, setWallPosterCorners] = useState<ScreenCorners | null>(null);
   const [filmIndex, setFilmIndex] = useState(0);
   const [timelineVisible, setTimelineVisible] = useState(false);
   const [trailer, setTrailer] = useState<Movie | null>(null);
@@ -60,6 +61,13 @@ export function MovieEdit() {
   const resumeEdit = useRef(false);
   const [playback, setPlayback] = useState<Playback>("paused");
   const [muted, setMuted] = useState(true);
+
+  const wallPoster = wallPosterCorners && {
+    left: Math.min(...wallPosterCorners.map(({ x }) => x)),
+    right: Math.max(...wallPosterCorners.map(({ x }) => x)),
+    top: Math.min(...wallPosterCorners.map(({ y }) => y)),
+    bottom: Math.max(...wallPosterCorners.map(({ y }) => y)),
+  };
 
   useGSAP(() => {
     const section = stage.current;
@@ -103,11 +111,19 @@ export function MovieEdit() {
 
       animation.to(section, { "--wipe": 1, duration: 1, ease: reduced ? "steps(1)" : "none" });
       if (reduced) {
-        animation.set(section, { "--poster-travel": 1, "--timeline-labels": 1 }, 1);
+        animation.set(section, {
+          "--poster-travel": 1,
+          "--timeline-labels": 1,
+          "--featured-poster-opacity": 1,
+          "--wall-poster-visibility": "hidden",
+          "--featured-poster-visibility": "visible",
+        }, 1);
       } else {
-        animation.to(section, { "--poster-travel": 1, duration: 0.73, ease: "power2.inOut" }, 0.2);
-        animation.to(section, { "--poster-turn": 89, duration: 0.32, ease: "power1.in" }, 0.2);
-        animation.to(section, { "--poster-turn": -5, duration: 0.41, ease: "power2.out" }, 0.52);
+        animation.set(section, { "--wall-poster-visibility": "hidden", "--featured-poster-visibility": "visible" }, 0.5);
+        animation.to(section, { "--featured-poster-opacity": 1, duration: 0.12, ease: "none" }, 0.5);
+        animation.to(section, { "--poster-travel": 1, duration: 0.46, ease: "power2.inOut" }, 0.52);
+        animation.to(section, { "--poster-turn": 89, duration: 0.17, ease: "power1.in" }, 0.52);
+        animation.to(section, { "--poster-turn": -5, duration: 0.29, ease: "power2.out" }, 0.69);
         animation.to(section, { "--timeline-labels": 1, duration: 0.34, ease: "power1.out" }, 0.57);
       }
     });
@@ -175,7 +191,12 @@ export function MovieEdit() {
       <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
         <div ref={worldLayer} className="cinema-world">
           <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
-          <CinemaScene videoRef={videoRef} active={phase !== "fullscreen" && playback !== "unavailable"} onProjection={handleProjection} />
+          <CinemaScene
+            videoRef={videoRef}
+            active={phase !== "fullscreen" && playback !== "unavailable"}
+            onProjection={handleProjection}
+            onWallPosterProjection={setWallPosterCorners}
+          />
         </div>
         <div ref={videoLayer} className="cinema-screen">
           <video
@@ -235,11 +256,33 @@ export function MovieEdit() {
           </div>
         </section>
 
+        {phase === "cinema" && wallPoster && playback !== "unavailable" && (
+          <button
+            type="button"
+            aria-label={`Watch the ${featured.title} trailer`}
+            onClick={(event) => openTrailer(featured, event.currentTarget)}
+            className="cinema-wall-poster-trigger absolute z-1 cursor-pointer rounded-sm"
+            style={{
+              left: wallPoster.left,
+              top: wallPoster.top,
+              width: wallPoster.right - wallPoster.left,
+              height: wallPoster.bottom - wallPoster.top,
+            }}
+          />
+        )}
+
         {phase === "cinema" && bestPictureWinners.map((movie, index) => (
           <figure
             key={movie.awardYear}
             className={`cinema-track-card ${index === 0 ? "cinema-featured-poster" : ""}`}
-            style={{ "--index": index } as CSSProperties}
+            style={{
+              "--index": index,
+              ...(index === 0 && wallPoster && {
+                "--featured-left": `${wallPoster.left}px`,
+                "--featured-bottom": `calc(100cqh - ${wallPoster.bottom + 32}px)`,
+                "--featured-width": `${wallPoster.right - wallPoster.left}px`,
+              }),
+            } as CSSProperties}
             inert={index !== 0 && ((!timelineVisible && index > 1) || Math.abs(filmIndex - index) > 2)}
           >
             <button

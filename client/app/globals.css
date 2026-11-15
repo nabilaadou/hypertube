@@ -107,6 +107,12 @@
   --wall-poster-visibility: visible;
   --timeline-labels: 0;
   --poster-turn: 0;
+  --poster-lift: 0;
+  --poster-pitch: 0;
+  --poster-roll: 0;
+  --poster-bend: 0;
+  --poster-paper: 0;
+  --poster-caption: 0;
   --track-index: 0;
   --card-step: max(31cqw, 9rem);
   --timeline-width: clamp(6.5rem, 17cqw, min(15rem, 46cqh * 2 / 3));
@@ -184,15 +190,74 @@
 
 .cinema-track-card.cinema-featured-poster {
   --featured-left: var(--spacing-page);
-  --featured-bottom: 16cqh;
+  --featured-bottom: calc(16cqh + 2rem);
   --featured-width: clamp(5rem, 13cqw, 11rem);
   left: calc(var(--featured-left) + var(--poster-travel) * (52cqw - var(--featured-left)));
-  bottom: calc(var(--featured-bottom) + var(--poster-travel) * (38cqh - var(--featured-bottom)));
+  bottom: calc(var(--featured-bottom) + var(--poster-travel) * (38cqh + 2rem - var(--featured-bottom)) + var(--poster-lift) * 1cqh);
   width: calc(var(--featured-width) + var(--poster-travel) * (var(--timeline-width) - var(--featured-width)));
   opacity: var(--featured-poster-opacity);
   visibility: var(--featured-poster-visibility);
   translate: calc(-1 * var(--track-index) * var(--card-step));
-  transform: perspective(850px) rotateY(calc(var(--poster-turn) * 1deg));
+  transform: perspective(850px) rotateX(calc(var(--poster-pitch) * 1deg)) rotateY(calc(var(--poster-turn) * 1deg)) rotateZ(calc(var(--poster-roll) * 1deg));
+}
+
+.cinema-featured-poster > button {
+  overflow: visible;
+  border-color: color-mix(in srgb, var(--color-gold) calc((1 - var(--poster-paper)) * 100%), transparent);
+  background-color: color-mix(in srgb, var(--color-ink) calc((1 - var(--poster-paper)) * 100%), transparent);
+}
+
+.cinema-featured-poster .cinema-card-artwork {
+  border-radius: inherit;
+  opacity: calc(1 - var(--poster-paper));
+}
+
+.cinema-featured-poster figcaption {
+  position: absolute;
+  inset: calc(100% + 0.5rem) 0 auto;
+  opacity: var(--poster-caption);
+}
+
+.cinema-paper-sheet {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--poster-paper);
+  perspective: 580px;
+  transform-style: preserve-3d;
+}
+
+.cinema-paper-sheet > span {
+  position: absolute;
+  inset-block: 0;
+  background-image: var(--paper-artwork);
+  background-repeat: no-repeat;
+  background-size: calc(100% / var(--paper-width)) 100%;
+  width: calc(var(--paper-width) * 100%);
+}
+
+.cinema-paper-left {
+  --paper-width: 0.24;
+  left: 0;
+  background-position: left center;
+  transform-origin: right center;
+  transform: rotateY(calc(max(0, var(--poster-bend)) * 1deg));
+  filter: brightness(calc(1 - max(0, var(--poster-bend)) * 0.006));
+}
+
+.cinema-paper-center {
+  --paper-width: 0.52;
+  left: 24%;
+  background-position: center;
+}
+
+.cinema-paper-right {
+  --paper-width: 0.24;
+  right: 0;
+  background-position: right center;
+  transform-origin: left center;
+  transform: rotateY(calc(min(0, var(--poster-bend)) * 1deg));
+  filter: brightness(calc(1 + min(0, var(--poster-bend)) * 0.006));
 }
 
 @media (prefers-reduced-motion: reduce) {

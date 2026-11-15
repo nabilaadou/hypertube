@@ -115,17 +115,22 @@ export function MovieEdit() {
         animation.set(section, {
           "--poster-travel": 1,
           "--timeline-labels": 1,
+          "--poster-caption": 1,
           "--featured-poster-opacity": 1,
           "--wall-poster-visibility": "hidden",
           "--featured-poster-visibility": "visible",
         }, 1);
       } else {
-        animation.set(section, { "--wall-poster-visibility": "hidden", "--featured-poster-visibility": "visible" }, 0.5);
-        animation.to(section, { "--featured-poster-opacity": 1, duration: 0.12, ease: "none" }, 0.5);
-        animation.to(section, { "--poster-travel": 1, duration: 0.46, ease: "power2.inOut" }, 0.52);
-        animation.to(section, { "--poster-turn": 89, duration: 0.17, ease: "power1.in" }, 0.52);
-        animation.to(section, { "--poster-turn": -5, duration: 0.29, ease: "power2.out" }, 0.69);
-        animation.to(section, { "--timeline-labels": 1, duration: 0.34, ease: "power1.out" }, 0.57);
+        animation
+          .set(section, { "--wall-poster-visibility": "hidden", "--featured-poster-visibility": "visible", "--poster-paper": 1 }, 0.5)
+          .to(section, { "--featured-poster-opacity": 1, duration: 0.08, ease: "none" }, 0.5)
+          .to(section, { "--poster-travel": 1, duration: 0.44, ease: "power1.inOut" }, 0.55)
+          .to(section, { "--poster-lift": 7, "--poster-turn": 10, "--poster-pitch": 8, "--poster-roll": -7, "--poster-bend": 34, duration: 0.12, ease: "sine.out" }, 0.55)
+          .to(section, { "--poster-lift": 6, "--poster-turn": -8, "--poster-pitch": -5, "--poster-roll": 4, "--poster-bend": -29, duration: 0.17, ease: "sine.inOut" }, 0.67)
+          .to(section, { "--poster-lift": 0, "--poster-turn": -5, "--poster-pitch": 0, "--poster-roll": 0, "--poster-bend": 0, duration: 0.15, ease: "sine.inOut" }, 0.84)
+          .to(section, { "--timeline-labels": 1, duration: 0.23, ease: "power1.out" }, 0.75)
+          .to(section, { "--poster-caption": 1, duration: 0.06, ease: "power1.out" }, 0.94)
+          .set(section, { "--poster-paper": 0 }, 0.99);
       }
     });
     return () => {
@@ -281,7 +286,7 @@ export function MovieEdit() {
               "--index": index,
               ...(index === 0 && wallPoster && {
                 "--featured-left": `${wallPoster.left}px`,
-                "--featured-bottom": `calc(100cqh - ${wallPoster.bottom + 32}px)`,
+                "--featured-bottom": `calc(100cqh - ${wallPoster.bottom}px)`,
                 "--featured-width": `${wallPoster.right - wallPoster.left}px`,
               }),
             } as CSSProperties}
@@ -303,8 +308,15 @@ export function MovieEdit() {
                 unoptimized
                 loading={index < 3 ? "eager" : "lazy"}
                 onError={(event) => { event.currentTarget.hidden = true; }}
-                className="relative aspect-[2/3] h-auto w-full object-cover"
+                className="cinema-card-artwork relative aspect-[2/3] h-auto w-full object-cover"
               />
+              {index === 0 && (
+                <span aria-hidden="true" className="cinema-paper-sheet" style={{ "--paper-artwork": `url("${movie.poster}")` } as CSSProperties}>
+                  <span className="cinema-paper-left" />
+                  <span className="cinema-paper-center" />
+                  <span className="cinema-paper-right" />
+                </span>
+              )}
               <span aria-hidden="true" className="absolute right-2 bottom-2 rounded-full bg-black/80 px-3 py-1 font-mono text-xs opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Play trailer</span>
             </button>
             <figcaption className="grid gap-1 text-center font-mono text-[clamp(0.625rem,1.1vw,0.875rem)] text-paper">

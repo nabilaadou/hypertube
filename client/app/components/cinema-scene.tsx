@@ -23,6 +23,7 @@ import {
 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { cinemaMedia } from "../data/movies";
+import { projectionScreenAspect, type ScreenCorners } from "./cinema-projection";
 
 function disposeModel(model: Object3D) {
   model.traverse((object) => {
@@ -41,9 +42,11 @@ function disposeModel(model: Object3D) {
 export default function CinemaScene({
   videoRef,
   active,
+  onProjection,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   active: boolean;
+  onProjection: (corners: ScreenCorners | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawRef = useRef<(() => void) | null>(null);
@@ -85,13 +88,12 @@ export default function CinemaScene({
     const texture = new VideoTexture(video);
     texture.colorSpace = SRGBColorSpace;
     texture.flipY = false;
-    const screenAspect = 1.56083 / 0.68611;
 
     function fitVideoTexture() {
       if (!video?.videoHeight) return;
       const videoAspect = video.videoWidth / video.videoHeight;
-      const cropX = Math.min(1, screenAspect / videoAspect);
-      const cropY = Math.min(1, videoAspect / screenAspect);
+      const cropX = Math.min(1, projectionScreenAspect / videoAspect);
+      const cropY = Math.min(1, videoAspect / projectionScreenAspect);
       texture.repeat.set(-cropX, cropY);
       texture.offset.set((1 + cropX) / 2, (1 - cropY) / 2);
     }
@@ -99,6 +101,7 @@ export default function CinemaScene({
     video.addEventListener("loadedmetadata", fitVideoTexture, { signal: events.signal });
     const screenMaterial = new MeshBasicMaterial({ map: texture, side: DoubleSide, toneMapped: false });
     let model: Object3D | undefined;
+    let screenMesh: Mesh | undefined;
     let firstFrame = true;
 
     function draw() {
@@ -113,14 +116,35 @@ export default function CinemaScene({
 
     function resize() {
       if (!canvas?.clientWidth || !canvas.clientHeight) return;
-      renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      if (screenMesh && canvas.parentElement) {
+        const stage = canvas.parentElement;
+        const position = screenMesh.geometry.getAttribute("position");
+        screenMesh.updateWorldMatrix(true, false);
+        camera.updateMatrixWorld();
+        function project(index: number) {
+          const point = new Vector3().fromBufferAttribute(position, index);
+          screenMesh?.localToWorld(point);
+          point.project(camera);
+          return { x: (stage.clientWidth + point.x * width) / 2, y: (stage.clientHeight - point.y * height) / 2 };
+        }
+        onProjection([project(3), project(2), project(0), project(1)]);
+      }
       draw();
     }
 
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
+    if (canvas.parentElement) observer.observe(canvas.parentElement);
     video.addEventListener("loadeddata", draw, { signal: events.signal });
-    canvas.addEventListener("webglcontextlost", () => setReady(false), { signal: events.signal });
+    canvas.addEventListener("webglcontextlost", (event) => {
+      event.preventDefault();
+      setReady(false);
+    }, { signal: events.signal });
     canvas.addEventListener("webglcontextrestored", () => {
       firstFrame = true;
       draw();
@@ -136,6 +160,7 @@ export default function CinemaScene({
       const original = Array.isArray(screen.material) ? screen.material : [screen.material];
       for (const material of original) material.dispose();
       screen.material = screenMaterial;
+      screenMesh = screen;
       model = theater;
       scene.add(theater);
       resize();
@@ -152,8 +177,9 @@ export default function CinemaScene({
         screenMaterial.dispose();
       }
       renderer.dispose();
+      onProjection(null);
     };
-  }, [videoRef]);
+  }, [videoRef, onProjection]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -174,8 +200,9 @@ export default function CinemaScene({
       ref={canvasRef}
       aria-label="Three-dimensional cinema"
       data-ready={ready}
+      data-live={active && ready}
       className="cinema-canvas"
-      style={{ opacity: active && ready ? 1 : 0 }}
+      style={{ visibility: active && ready ? "visible" : "hidden" }}
     />
   );
 }

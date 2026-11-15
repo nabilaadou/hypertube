@@ -128,7 +128,7 @@ Implementation complete on `cinematic-landing-page`. Lint and production build p
 1. Display the user's single movie edit across the initial viewport.
 2. Choose the video crop to preserve the important content at desktop sizes.
 3. Display the poster image while the video loads.
-4. Add Hypertube branding, the menu control, the scroll cue, and an accessible sound control where appropriate.
+4. Show only the video during the opening. Show branding, navigation, playback, and sound controls once the theater settles.
 5. Start muted playback when the browser permits it and provide a usable play action when autoplay is blocked.
 6. Keep the video element available for the transition into the theater screen.
 
@@ -141,12 +141,12 @@ Implementation complete on `cinematic-landing-page`. Lint and production build p
 
 ## Task 4 — Make the video transition automatically into the screen
 
-The first downward scroll triggers a timed reveal that completes on its own. During that reveal, further scroll input cannot advance the page into the movie timeline.
+The theater reveal starts automatically after about three seconds of opening playback. During that reveal, further scroll input cannot advance the page into the movie timeline.
 
 ### Steps
 
 1. Represent the opening, active reveal, and settled cinema as explicit interaction states.
-2. Trigger the reveal from the first intentional downward scroll or the visible scroll action.
+2. Start the reveal automatically on the first visit. After returning to fullscreen, let a downward gesture replay the reveal.
 3. Pause Lenis while the timed fullscreen reveal runs so inertia from the triggering gesture cannot scroll past the theater.
 4. Animate the fullscreen video into the theater screen while the theater becomes visible around it.
 5. Keep playback continuous so the edit retains its current frame and playback position.
@@ -155,7 +155,7 @@ The first downward scroll triggers a timed reveal that completes on its own. Dur
 8. Align the video's final corners with the theater screen at supported viewport sizes.
 9. Handle cancellation, reduced motion, and component cleanup so Lenis cannot remain paused after navigation or an interrupted reveal.
 
-The reveal currently aligns the playing video with the screen in the existing theater render. Task 5 replaces that render with the live theater.
+The reveal follows the projected corners of the live theater screen. The room fills the viewport. The still render supplies the room and screen position when the live model is unavailable.
 
 ### Starting values to review
 
@@ -163,7 +163,7 @@ The current prototype uses an approximately 850 ms reveal and a brief 180 ms inp
 
 ### Acceptance criteria
 
-- [x] One downward gesture starts the complete reveal.
+- [x] The opening plays and reveals the theater without scrolling.
 - [x] Continued scrolling cannot scrub or skip the active reveal.
 - [x] The video lands precisely in the theater screen and continues playing.
 - [x] A strong trackpad gesture leaves the cinema visible after the reveal.
@@ -197,7 +197,7 @@ The current prototype uses an approximately 850 ms reveal and a brief 180 ms inp
 
 1. Begin the cinema exit only after the hold distance has been completed.
 2. Use the approved diagonal wipe from the current prototype as the starting composition.
-3. Move and scale the featured poster from its left-side position into the first timeline position.
+3. Move, scale, and rotate the featured poster into the first timeline position. Show the next card entering from the right.
 4. Preserve the poster's visual continuity during the handoff.
 5. Reveal the timeline background and labels in the intended order.
 6. Support reverse scrolling through the transition without duplicate posters or sudden jumps.
@@ -218,7 +218,7 @@ The current prototype uses an approximately 850 ms reveal and a brief 180 ms inp
 2. Display Oscar ceremony years.
 3. Order the selection oldest first, from 1980 to 2026.
 4. Use Kramer vs. Kramer as the first poster and the featured film in the cinema.
-5. Connect Lenis scroll progress through GSAP ScrollTrigger to poster movement, year labels, and the active movie.
+5. Connect Lenis scroll progress through GSAP ScrollTrigger to a continuous track of staggered posters and year labels.
 6. Keep poster dimensions and typography consistent with the reference composition.
 7. Open the selected movie's trailer when its poster is activated.
 8. Provide close controls, Escape handling, focus restoration, and clear playback failure feedback.

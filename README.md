@@ -60,7 +60,16 @@ Run `npm run prepare:media` from `client/` before starting local development or 
 
 The public copies are ignored by Git. A fresh clone includes the theater model. Supply the movie edit and preview images locally in `design-assets/`, then rerun the command. Missing source files produce a message and leave any existing public copy available. The video preview displays an unavailable message when the edit cannot load.
 
-The served model URL is `/models/private-home-cinema-textured.glb`. The edit and image URLs begin with `/media/`. `client/app/data/movies.ts` contains those paths and the draft movie entries. The current frontend phase provides shared styles, a basic media preview, and a Lenis instance synchronized with GSAP. The cinematic section transitions follow in the next tasks.
+The media script prefers `design-assets/reel-with-sound.mp4` when present. To prepare it from the supplied two-track reel, run this command from the repository root with FFmpeg installed.
+
+```sh
+ffmpeg -i design-assets/reel.mp4 -map 0:v:0 -map 0:a:1 -c copy -movflags +faststart design-assets/reel-with-sound.mp4
+(cd client && npm run prepare:media)
+```
+
+The command copies the original video and its audible second audio track. For a reel that already has a single audible track, supply it as `design-assets/reel.mp4`.
+
+The served model URL is `/models/private-home-cinema-textured.glb`. The edit and image URLs begin with `/media/`. The media paths and poster lineup are in `client/app/data/movies.ts`.
 
 ## Verify changes
 

@@ -38,58 +38,67 @@
   --reveal: 0;
 }
 
+.cinema-world {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: var(--reveal);
+  transform-origin: top left;
+}
+
 .cinema-room {
   position: absolute;
   inset: 0;
   background-color: var(--color-ink);
   background-position: center;
-  background-size: contain;
+  background-size: cover;
   background-repeat: no-repeat;
-  opacity: var(--reveal);
 }
 
 .cinema-screen {
-  /* Screen bounds in the 1440 × 900 theater render. */
-  --room-width: min(100cqw, 160cqh);
-  --room-height: calc(var(--room-width) * 0.625);
   position: absolute;
+  z-index: 1;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   background: var(--color-ink);
-  left: calc(var(--reveal) * (50cqw - var(--room-width) * 243 / 1440));
-  top: calc(var(--reveal) * (50cqh - var(--room-height) * 156 / 900));
-  right: calc(var(--reveal) * (50cqw - var(--room-width) * 269 / 1440));
-  bottom: calc(var(--reveal) * (50cqh - var(--room-height) * 77 / 900));
+  transform-origin: top left;
 }
 
-.cinema-shade,
-.cinema-cue {
-  opacity: calc(1 - var(--reveal));
+.cinema-stage[data-phase="cinema"]:has(.cinema-canvas[data-live="true"]) .cinema-screen {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cinema-screen {
+    transition: opacity 100ms linear;
+  }
 }
 
 .cinema-canvas {
   position: absolute;
-  inset: 0;
-  width: min(100cqw, 160cqh);
-  height: min(100cqh, 62.5cqw);
-  margin: auto;
+  top: 50%;
+  left: 50%;
+  width: max(100cqw, 160cqh);
+  height: max(100cqh, 62.5cqw);
+  transform: translate(-50%, -50%);
   pointer-events: none;
-  transition: opacity 160ms ease-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cinema-canvas {
-    transition: none;
-  }
 }
 
 .cinema-stage {
   --wipe: 0;
   --poster-travel: 0;
   --timeline-labels: 0;
+  --poster-turn: 0;
+  --track-index: 0;
+  --card-step: max(31cqw, 9rem);
+  --timeline-width: clamp(6.5rem, 17cqw, min(15rem, 46cqh * 2 / 3));
 }
 
 .cinema-timeline {
   visibility: hidden;
+  z-index: 2;
   background: radial-gradient(ellipse at 23% 36%, var(--color-quote), var(--color-theater) 70%);
   clip-path: polygon(
     0 calc(100% - var(--wipe) * 102%),
@@ -104,30 +113,70 @@
 }
 
 .cinema-timeline-grid {
-  background: repeating-linear-gradient(to right, transparent 0 calc(19.2cqw - 1px), #f1ede422 calc(19.2cqw - 1px) 19.2cqw);
+  background:
+    repeating-linear-gradient(to right, transparent 0 calc(19.2cqw - 1px), #f1ede422 calc(19.2cqw - 1px) 19.2cqw),
+    radial-gradient(circle, #f1ede416 0.4px, transparent 0.85px) 0 0 / 5px 7px;
+}
+
+.cinema-timeline-grid::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 1.5rem;
+  background: repeating-linear-gradient(to right, transparent 0 calc(3.8cqw - 1px), #f1ede438 calc(3.8cqw - 1px) 3.8cqw);
 }
 
 .cinema-timeline-label {
   opacity: var(--timeline-labels);
 }
 
-.cinema-featured-poster {
+.cinema-year-track {
+  position: absolute;
+  inset: 73% 0 auto;
+  font: 700 clamp(3rem, 7vw, 7rem) / 1 var(--font-barlow), Impact, sans-serif;
+  color: color-mix(in srgb, var(--color-paper) 24%, transparent);
+}
+
+.cinema-year-track span {
+  position: absolute;
+  left: 28cqw;
+  transform: translateX(calc((var(--index) - var(--track-index)) * var(--card-step)));
+}
+
+.cinema-track-card {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  gap: 0.5rem;
+  left: 52cqw;
+  bottom: 30cqh;
+  width: var(--timeline-width);
+  translate: calc((var(--index) - var(--track-index)) * var(--card-step) + (1 - var(--poster-travel)) * 45cqw);
+  opacity: var(--timeline-labels);
+  transform: perspective(850px) rotateY(-9deg) rotate(2deg);
+  filter: drop-shadow(0 12px 20px #0007);
+}
+
+.cinema-track-card:nth-of-type(even) {
+  bottom: 16cqh;
+  transform: perspective(850px) rotateY(8deg) rotate(-2deg);
+}
+
+.cinema-track-card.cinema-featured-poster {
   --featured-width: clamp(5rem, 13cqw, 11rem);
-  --timeline-width: clamp(6.5rem, 17cqw, min(15rem, 46cqh * 2 / 3));
   left: calc(var(--spacing-page) + var(--poster-travel) * (52cqw - var(--spacing-page)));
   bottom: calc(16cqh + var(--poster-travel) * 22cqh);
   width: calc(var(--featured-width) + var(--poster-travel) * (var(--timeline-width) - var(--featured-width)));
+  opacity: 1;
+  translate: calc(-1 * var(--track-index) * var(--card-step));
+  transform: perspective(850px) rotateY(calc(var(--poster-turn) * 1deg));
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .cinema-timeline-poster-image {
-    animation: timeline-poster-in 220ms ease-out;
-  }
-}
-
-@keyframes timeline-poster-in {
-  from {
-    opacity: 0;
+@media (prefers-reduced-motion: reduce) {
+  .cinema-track-card,
+  .cinema-track-card:nth-of-type(even),
+  .cinema-track-card.cinema-featured-poster {
+    transform: none;
   }
 }
 

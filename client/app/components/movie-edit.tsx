@@ -6,8 +6,9 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useLenis } from "lenis/react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { bestPictureWinners, cinemaMedia, type Movie } from "../data/movies";
+import { projectVideo, type ScreenCorners } from "./cinema-projection";
 import { TrailerDialog } from "./trailer-dialog";
 import { useCinemaReveal } from "./use-cinema-reveal";
 
@@ -28,16 +29,35 @@ type Playback = "paused" | "playing" | "unavailable";
 const control = "grid min-h-11 cursor-pointer place-items-center rounded-full border border-white/40 bg-black/65 px-4 font-mono text-xs uppercase";
 
 export function MovieEdit() {
-  const { stage, phase, reveal } = useCinemaReveal();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoLayer = useRef<HTMLDivElement>(null);
+  const worldLayer = useRef<HTMLDivElement>(null);
+  const corners = useRef<ScreenCorners | null>(null);
+  const revealProgress = useRef(0);
+
+  const updateProjection = useCallback((progress: number) => {
+    revealProgress.current = progress;
+    const layer = videoLayer.current;
+    const section = layer?.parentElement;
+    const world = worldLayer.current;
+    if (layer && section && world) {
+      projectVideo({ stage: section, layer, world, corners: corners.current, progress });
+    }
+  }, []);
+
+  const handleProjection = useCallback((points: ScreenCorners | null) => {
+    corners.current = points;
+    updateProjection(revealProgress.current);
+  }, [updateProjection]);
+
+  const { stage, phase } = useCinemaReveal(videoRef, updateProjection);
   const runway = useRef<HTMLDivElement>(null);
   const lenis = useLenis();
   const [filmIndex, setFilmIndex] = useState(0);
   const [timelineVisible, setTimelineVisible] = useState(false);
   const [trailer, setTrailer] = useState<Movie | null>(null);
-  const trailerTrigger = useRef<HTMLButtonElement>(null);
+  const trailerTrigger = useRef<HTMLButtonElement | null>(null);
   const resumeEdit = useRef(false);
-  const movie = bestPictureWinners[filmIndex] ?? featured;
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [playback, setPlayback] = useState<Playback>("paused");
   const [muted, setMuted] = useState(true);
 
@@ -46,18 +66,24 @@ export function MovieEdit() {
     const scrollArea = runway.current;
     if (!section || !scrollArea) return;
 
-    ScrollTrigger.create({
-      trigger: scrollArea,
-      start: () => `top+=${section.clientHeight * timelineStart} top`,
-      end: () => `+=${section.clientHeight * filmViewports * lastFilm}`,
-      onUpdate: ({ progress }) => setFilmIndex(Math.round(progress * lastFilm)),
-      onLeaveBack: () => {
-        setTimelineVisible(false);
-        setFilmIndex(0);
+    const resize = new ResizeObserver(() => updateProjection(revealProgress.current));
+    resize.observe(section);
+
+    function syncTimeline({ progress, start }: ScrollTrigger) {
+      setFilmIndex(Math.round(progress * lastFilm));
+      setTimelineVisible(window.scrollY >= start);
+    }
+    gsap.to(section, {
+      "--track-index": lastFilm,
+      ease: "none",
+      scrollTrigger: {
+        trigger: scrollArea,
+        start: () => `top+=${section.clientHeight * timelineStart} top`,
+        end: () => `+=${section.clientHeight * filmViewports * lastFilm}`,
+        scrub: true,
+        onUpdate: syncTimeline,
+        onRefresh: syncTimeline,
       },
-      onEnter: () => setTimelineVisible(true),
-      onEnterBack: () => setTimelineVisible(true),
-      onLeave: () => setTimelineVisible(true),
     });
 
     const motion = gsap.matchMedia();
@@ -80,10 +106,15 @@ export function MovieEdit() {
         animation.set(section, { "--poster-travel": 1, "--timeline-labels": 1 }, 1);
       } else {
         animation.to(section, { "--poster-travel": 1, duration: 0.73, ease: "power2.inOut" }, 0.2);
+        animation.to(section, { "--poster-turn": 89, duration: 0.32, ease: "power1.in" }, 0.2);
+        animation.to(section, { "--poster-turn": -5, duration: 0.41, ease: "power2.out" }, 0.52);
         animation.to(section, { "--timeline-labels": 1, duration: 0.34, ease: "power1.out" }, 0.57);
       }
     });
-    return () => motion.revert();
+    return () => {
+      resize.disconnect();
+      motion.revert();
+    };
   }, { scope: runway });
 
   useEffect(() => {
@@ -110,7 +141,8 @@ export function MovieEdit() {
     else window.scrollTo({ top });
   }
 
-  function openTrailer() {
+  function openTrailer(movie: Movie, trigger: HTMLButtonElement) {
+    trailerTrigger.current = trigger;
     const video = videoRef.current;
     resumeEdit.current = Boolean(video && !video.paused);
     video?.pause();
@@ -141,8 +173,11 @@ export function MovieEdit() {
   return (
     <div ref={runway} style={{ minHeight: `${(1 + cinemaHoldViewports + handoffViewports + timelineHoldViewports + filmViewports * lastFilm) * 100}svh` }}>
       <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
-        <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
-        <div className="cinema-screen">
+        <div ref={worldLayer} className="cinema-world">
+          <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
+          <CinemaScene videoRef={videoRef} active={phase !== "fullscreen" && playback !== "unavailable"} onProjection={handleProjection} />
+        </div>
+        <div ref={videoLayer} className="cinema-screen">
           <video
             ref={videoRef}
             className="absolute inset-0 size-full object-cover object-center"
@@ -165,10 +200,8 @@ export function MovieEdit() {
             </p>
           )}
         </div>
-        <CinemaScene videoRef={videoRef} active={phase === "cinema" && playback !== "unavailable"} />
-        <div aria-hidden="true" className="cinema-shade pointer-events-none absolute inset-0 bg-linear-to-b from-black/75 via-transparent to-black/80" />
 
-        <header className="absolute inset-x-0 top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center px-page py-6 md:py-8">
+        <header className={`absolute inset-x-0 top-0 z-10 ${phase === "cinema" ? "grid" : "sr-only"} grid-cols-[1fr_auto_1fr] items-center px-page py-6 md:py-8`} inert={phase !== "cinema"}>
           <svg aria-hidden="true" viewBox="0 0 40 40" fill="none" className="size-8">
             <path d="M6 6v28m28-28v28M6 12l14 9 14-9M6 22l14 9 14-9" stroke="currentColor" strokeWidth="3.5" strokeLinecap="square" />
           </svg>
@@ -195,41 +228,49 @@ export function MovieEdit() {
           <h2 id="timeline-title" className="cinema-timeline-label absolute top-[10%] left-page font-display text-[clamp(3.5rem,14vw,15rem)] leading-none font-black whitespace-nowrap uppercase text-timeline">
             {featured.award}
           </h2>
-          <p className="cinema-timeline-label absolute bottom-[10%] left-page font-display text-[clamp(3rem,7vw,7rem)] leading-none font-bold text-paper/35">
-            {movie.awardYear}
-          </p>
+          <div aria-hidden="true" className="cinema-year-track cinema-timeline-label">
+            {bestPictureWinners.map((film, index) => (
+              <span key={film.awardYear} style={{ "--index": index } as CSSProperties}>{film.awardYear}</span>
+            ))}
+          </div>
         </section>
 
-        {phase === "cinema" && (
-          <figure className="cinema-featured-poster absolute grid gap-2 drop-shadow-lg">
+        {phase === "cinema" && bestPictureWinners.map((movie, index) => (
+          <figure
+            key={movie.awardYear}
+            className={`cinema-track-card ${index === 0 ? "cinema-featured-poster" : ""}`}
+            style={{ "--index": index } as CSSProperties}
+            inert={index !== 0 && ((!timelineVisible && index > 1) || Math.abs(filmIndex - index) > 2)}
+          >
             <button
-              ref={trailerTrigger}
               type="button"
+              tabIndex={index === filmIndex ? 0 : -1}
               aria-label={`Watch the ${movie.title} trailer`}
-              onClick={openTrailer}
+              onClick={(event) => openTrailer(movie, event.currentTarget)}
               className="group relative isolate aspect-[2/3] w-full cursor-pointer overflow-hidden rounded-card border border-gold bg-ink"
             >
               <span aria-hidden="true" className="absolute inset-0 grid place-items-center p-2 text-center font-display text-2xl">{movie.title}</span>
               <Image
-                key={movie.poster}
                 src={movie.poster}
                 alt=""
                 width={240}
                 height={360}
                 unoptimized
+                loading={index < 3 ? "eager" : "lazy"}
                 onError={(event) => { event.currentTarget.hidden = true; }}
-                className="cinema-timeline-poster-image relative aspect-[2/3] h-auto w-full object-cover"
+                className="relative aspect-[2/3] h-auto w-full object-cover"
               />
               <span aria-hidden="true" className="absolute right-2 bottom-2 rounded-full bg-black/80 px-3 py-1 font-mono text-xs opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Play trailer</span>
             </button>
-            <figcaption className="font-mono text-[clamp(0.625rem,1.1vw,0.875rem)] text-paper">
+            <figcaption className="grid gap-1 text-center font-mono text-[clamp(0.625rem,1.1vw,0.875rem)] text-paper">
               {movie.title}
+              <span className="cinema-timeline-label text-muted">{movie.awardYear}</span>
             </figcaption>
           </figure>
-        )}
+        ))}
 
         {phase === "cinema" && timelineVisible && (
-          <nav aria-label="Best Picture years" className="absolute inset-x-page bottom-[15%] flex justify-start gap-1.5 overflow-x-auto md:justify-center md:gap-3" data-lenis-prevent-horizontal>
+          <nav aria-label="Best Picture years" className="absolute inset-x-page bottom-[8%] z-[4] flex justify-start gap-1.5 overflow-x-auto md:justify-center md:gap-3" data-lenis-prevent-horizontal>
             {bestPictureWinners.map((film, index) => (
               <button
                 key={film.awardYear}
@@ -247,30 +288,16 @@ export function MovieEdit() {
 
         {trailer && <TrailerDialog movie={trailer} onClose={closeTrailer} />}
 
-        <div className="absolute inset-x-0 bottom-0 grid grid-cols-[1fr_auto_1fr] items-end gap-2 px-page pb-6 md:pb-8">
-          <div>
-            {playback !== "unavailable" && (
-              <button type="button" onClick={togglePlayback} className={control}>
-                {playback === "playing" ? "Pause" : "Play"}
-              </button>
-            )}
+        {phase === "cinema" && playback !== "unavailable" && (
+          <div className="absolute inset-x-0 bottom-0 z-[4] flex justify-between gap-2 px-page pb-6 md:pb-8">
+            <button type="button" onClick={togglePlayback} className={control}>
+              {playback === "playing" ? "Pause" : "Play"}
+            </button>
+            <button type="button" aria-label="Sound" aria-pressed={!muted} onClick={toggleSound} className={control}>
+              {muted ? "Sound off" : "Sound on"}
+            </button>
           </div>
-          <div>
-            {phase !== "cinema" && (
-              <button type="button" aria-disabled={phase !== "fullscreen"} onClick={reveal} className={`${control} cinema-cue gap-1 py-2`}>
-                Scroll
-                <span aria-hidden="true" className="size-2 rotate-45 border-r border-b" />
-              </button>
-            )}
-          </div>
-          <div className="justify-self-end">
-            {playback !== "unavailable" && (
-              <button type="button" aria-label="Sound" aria-pressed={!muted} onClick={toggleSound} className={control}>
-                {muted ? "Sound off" : "Sound on"}
-              </button>
-            )}
-          </div>
-        </div>
+        )}
       </section>
     </div>
   );

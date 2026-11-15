@@ -2,14 +2,16 @@
 
 import gsap from "gsap";
 import { useLenis } from "lenis/react";
-import { useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
 type Phase = "fullscreen" | "revealing" | "cinema" | "returning";
 
-export function useCinemaReveal() {
+export function useCinemaReveal(
+  videoRef: RefObject<HTMLVideoElement | null>,
+  onProgress: (progress: number) => void,
+) {
   const lenis = useLenis();
   const stage = useRef<HTMLElement>(null);
-  const requestReveal = useRef<(() => void) | null>(null);
   const [phase, setPhase] = useState<Phase>("fullscreen");
 
   useEffect(() => {
@@ -18,7 +20,11 @@ export function useCinemaReveal() {
 
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const events = new AbortController();
+    const video = videoRef.current;
+    const progress = { value: 0 };
     let current: Phase = "fullscreen";
+    let introPending = true;
+    let introTimer: number | undefined;
     let animation: gsap.core.Tween | undefined;
     let quietTimer: number | undefined;
     let lastGesture = -Infinity;
@@ -45,8 +51,12 @@ export function useCinemaReveal() {
       lenis.stop();
       current = destination === "cinema" ? "revealing" : "returning";
       setPhase(current);
-      animation = gsap.to(element, {
-        "--reveal": destination === "cinema" ? 1 : 0,
+      animation = gsap.to(progress, {
+        value: destination === "cinema" ? 1 : 0,
+        onUpdate() {
+          element.style.setProperty("--reveal", String(progress.value));
+          onProgress(progress.value);
+        },
         duration: motion.matches ? 0 : 0.85,
         ease: "power2.inOut",
         onComplete() {
@@ -66,6 +76,10 @@ export function useCinemaReveal() {
         return;
       }
 
+      if (introPending && window.scrollY <= 1) {
+        event.preventDefault();
+        return;
+      }
       if (window.scrollY > 1) return;
       if (current === "fullscreen" && delta > 0) {
         lastGesture = performance.now();
@@ -78,9 +92,27 @@ export function useCinemaReveal() {
       }
     }
 
-    requestReveal.current = () => {
-      if (current === "fullscreen") moveTo("cinema");
-    };
+    function finishIntro() {
+      introPending = false;
+      moveTo("cinema");
+    }
+
+    function scheduleIntroAfterPlayback() {
+      window.clearTimeout(introTimer);
+      introTimer = window.setTimeout(finishIntro, 3000);
+    }
+
+    if (motion.matches || window.scrollY > 1 || window.location.hash) {
+      finishIntro();
+    } else {
+      lenis.stop();
+      if (video && !video.paused) {
+        scheduleIntroAfterPlayback();
+      } else {
+        introTimer = window.setTimeout(finishIntro, 5000);
+        video?.addEventListener("playing", scheduleIntroAfterPlayback, { once: true, signal: events.signal });
+      }
+    }
 
     const capture = { capture: true, passive: false, signal: events.signal };
     window.addEventListener("wheel", (event) => {
@@ -116,17 +148,24 @@ export function useCinemaReveal() {
       else if (fartherDown) moveTo("fullscreen");
     }, { passive: true, signal: events.signal });
     motion.addEventListener("change", () => {
-      if (motion.matches) animation?.progress(1);
+      if (!motion.matches) return;
+      if (introPending) {
+        window.clearTimeout(introTimer);
+        finishIntro();
+      } else {
+        animation?.progress(1);
+      }
     }, { signal: events.signal });
 
     return () => {
       events.abort();
       animation?.kill();
-      if (locked) release();
-      requestReveal.current = null;
+      if (locked || introPending) release();
+      window.clearTimeout(introTimer);
+      onProgress(0);
       element.style.removeProperty("--reveal");
     };
-  }, [lenis]);
+  }, [lenis, onProgress, videoRef]);
 
-  return { stage, phase, reveal: () => requestReveal.current?.() };
+  return { stage, phase };
 }

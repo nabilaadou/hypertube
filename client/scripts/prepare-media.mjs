@@ -1,8 +1,17 @@
 import { copyFile, mkdir, stat } from "node:fs/promises";
 
+const repairedReel = new URL("../../design-assets/reel-with-sound.mp4", import.meta.url);
+const reel = await stat(repairedReel).then(
+  () => "../../design-assets/reel-with-sound.mp4",
+  (error) => {
+    if (error.code !== "ENOENT") throw error;
+    return "../../design-assets/reel.mp4";
+  },
+);
+
 const assets = [
   ["../../models/private-home-cinema-textured.glb", "../public/models/private-home-cinema-textured.glb"],
-  ["../../design-assets/reel.mp4", "../public/media/reel.mp4"],
+  [reel, "../public/media/reel.mp4"],
   ["../../design-assets/reel-poster.jpg", "../public/media/reel-poster.jpg"],
   ["../../design-assets/theater.png", "../public/media/theater.png"],
 ];

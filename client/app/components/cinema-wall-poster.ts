@@ -26,6 +26,7 @@ export function createCinemaWallPoster(poster: Texture) {
   const group = new Group();
   group.position.set(1.0131, 0.01, -0.11942);
   group.rotation.y = -2.298179;
+  group.translateX(-0.024);
 
   const darkMetal = new MeshStandardMaterial({ color: 0x26201a, metalness: 0.45, roughness: 0.45 });
   const antiqueGold = new MeshStandardMaterial({ color: 0x806242, metalness: 0.52, roughness: 0.43 });

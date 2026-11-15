@@ -64,6 +64,10 @@
   filter: brightness(0.25);
 }
 
+.cinema-world[data-lights-on="true"] .cinema-room {
+  filter: brightness(0.8);
+}
+
 .cinema-screen {
   position: absolute;
   z-index: 1;

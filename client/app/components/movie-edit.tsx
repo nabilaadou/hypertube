@@ -61,6 +61,7 @@ export function MovieEdit() {
   const resumeEdit = useRef(false);
   const [playback, setPlayback] = useState<Playback>("paused");
   const [muted, setMuted] = useState(true);
+  const [lightsOn, setLightsOn] = useState(false);
 
   const wallPoster = wallPosterCorners && {
     left: Math.min(...wallPosterCorners.map(({ x }) => x)),
@@ -189,11 +190,12 @@ export function MovieEdit() {
   return (
     <div ref={runway} style={{ minHeight: `${(1 + cinemaHoldViewports + handoffViewports + timelineHoldViewports + filmViewports * lastFilm) * 100}svh` }}>
       <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
-        <div ref={worldLayer} className="cinema-world">
+        <div ref={worldLayer} className="cinema-world" data-lights-on={lightsOn}>
           <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
           <CinemaScene
             videoRef={videoRef}
             active={phase !== "fullscreen" && playback !== "unavailable"}
+            lightsOn={lightsOn}
             onProjection={handleProjection}
             onWallPosterProjection={setWallPosterCorners}
           />
@@ -336,9 +338,22 @@ export function MovieEdit() {
             <button type="button" onClick={togglePlayback} className={control}>
               {playback === "playing" ? "Pause" : "Play"}
             </button>
-            <button type="button" aria-label="Sound" aria-pressed={!muted} onClick={toggleSound} className={control}>
-              {muted ? "Sound off" : "Sound on"}
-            </button>
+            <div className="flex gap-2">
+              {!timelineVisible && (
+                <button
+                  type="button"
+                  aria-label="Cinema lights"
+                  aria-pressed={lightsOn}
+                  onClick={() => setLightsOn((on) => !on)}
+                  className={`${control} aria-pressed:border-gold`}
+                >
+                  {lightsOn ? "Lights on" : "Lights off"}
+                </button>
+              )}
+              <button type="button" aria-label="Sound" aria-pressed={!muted} onClick={toggleSound} className={control}>
+                {muted ? "Sound off" : "Sound on"}
+              </button>
+            </div>
           </div>
         )}
       </section>

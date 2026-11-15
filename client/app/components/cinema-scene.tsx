@@ -45,17 +45,25 @@ function disposeModel(model: Object3D) {
 export default function CinemaScene({
   videoRef,
   active,
+  lightsOn,
   onProjection,
   onWallPosterProjection,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   active: boolean;
+  lightsOn: boolean;
   onProjection: (corners: ScreenCorners | null) => void;
   onWallPosterProjection: (corners: ScreenCorners | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawRef = useRef<(() => void) | null>(null);
+  const lightsOnRef = useRef(lightsOn);
   const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    lightsOnRef.current = lightsOn;
+    drawRef.current?.();
+  }, [lightsOn]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -83,6 +91,7 @@ export default function CinemaScene({
 
     RectAreaLightUniformsLib.init();
     const screenLight = new RectAreaLight(0xfff2e2, 1.5);
+    const ceilingLight = new RectAreaLight(0xffe3ba, 0);
     const screenTint = screenLight.color.clone();
     const targetTint = screenTint.clone();
     let targetIntensity = screenLight.intensity;
@@ -111,6 +120,7 @@ export default function CinemaScene({
     let model: Object3D | undefined;
     let screenMesh: Mesh | undefined;
     let wallArtwork: Mesh | undefined;
+    let ceilingMaterial: MeshStandardMaterial | undefined;
     let firstFrame = true;
 
     function draw() {
@@ -140,6 +150,10 @@ export default function CinemaScene({
       }
       screenLight.intensity = MathUtils.lerp(screenLight.intensity, targetIntensity, firstFrame ? 1 : 0.15);
       screenLight.color.lerp(targetTint, firstFrame ? 1 : 0.15);
+      if (ceilingMaterial) {
+        ceilingLight.intensity = lightsOnRef.current ? 0.95 : 0;
+        ceilingMaterial.emissiveIntensity = lightsOnRef.current ? 3 : 0;
+      }
       renderer.render(scene, camera);
       if (firstFrame) {
         firstFrame = false;
@@ -211,6 +225,21 @@ export default function CinemaScene({
           }
         }
       });
+
+      const ceiling = theater.getObjectByName("Ceiling_light_panels");
+      if (ceiling instanceof Mesh && ceiling.material instanceof MeshStandardMaterial) {
+        ceilingMaterial = ceiling.material.clone();
+        ceiling.material = ceilingMaterial;
+
+        const bounds = new Box3().setFromObject(ceiling);
+        const size = bounds.getSize(new Vector3());
+        ceilingLight.width = size.x;
+        ceilingLight.height = size.z;
+        bounds.getCenter(ceilingLight.position);
+        ceilingLight.position.y -= 0.015;
+        ceilingLight.rotation.x = -Math.PI / 2;
+        scene.add(ceilingLight);
+      }
 
       const original = Array.isArray(screen.material) ? screen.material : [screen.material];
       for (const material of original) material.dispose();

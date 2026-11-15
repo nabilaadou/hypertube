@@ -16,7 +16,7 @@ const CinemaScene = dynamic(() => import("./cinema-scene"), { ssr: false });
 
 const featured = bestPictureWinners[0];
 const cinemaHoldViewports = 1;
-const handoffViewports = 1.35;
+const handoffViewports = 1.85;
 const timelineHoldViewports = 0.5;
 const filmViewports = 0.7;
 const lastFilm = bestPictureWinners.length - 1;
@@ -110,23 +110,28 @@ export function MovieEdit() {
         },
       });
 
-      animation.to(section, { "--wipe": 1, duration: 1, ease: reduced ? "steps(1)" : "none" });
       if (reduced) {
         animation.set(section, {
+          "--wipe": 1,
           "--poster-travel": 1,
           "--timeline-labels": 1,
           "--featured-poster-opacity": 1,
           "--wall-poster-visibility": "hidden",
           "--featured-poster-visibility": "visible",
         }, 1);
-      } else {
-        animation.set(section, { "--wall-poster-visibility": "hidden", "--featured-poster-visibility": "visible" }, 0.5);
-        animation.to(section, { "--featured-poster-opacity": 1, duration: 0.12, ease: "none" }, 0.5);
-        animation.to(section, { "--poster-travel": 1, duration: 0.46, ease: "power2.inOut" }, 0.52);
-        animation.to(section, { "--poster-turn": 89, duration: 0.17, ease: "power1.in" }, 0.52);
-        animation.to(section, { "--poster-turn": -5, duration: 0.29, ease: "power2.out" }, 0.69);
-        animation.to(section, { "--timeline-labels": 1, duration: 0.34, ease: "power1.out" }, 0.57);
+        return;
       }
+
+      animation
+        .to(section, { "--cinema-dim": 1, duration: 0.3, ease: "power1.inOut" }, 0)
+        .set(section, { "--wall-poster-visibility": "hidden", "--featured-poster-visibility": "visible" }, 0.17)
+        .to(section, { "--featured-poster-opacity": 1, duration: 0.14, ease: "power1.out" }, 0.17)
+        .addLabel("spin", 0.34)
+        .to(section, { "--poster-center": 1, "--poster-turn": 360, duration: 0.31, ease: "power2.inOut" }, "spin")
+        .addLabel("dock", 0.76)
+        .to(section, { "--wipe": 1, duration: 0.24, ease: "none" }, "dock")
+        .to(section, { "--poster-travel": 1, "--poster-turn": 355, duration: 0.24, ease: "power2.inOut" }, "dock")
+        .to(section, { "--timeline-labels": 1, duration: 0.16, ease: "power1.out" }, 0.84);
     });
     return () => {
       resize.disconnect();
@@ -224,7 +229,9 @@ export function MovieEdit() {
           )}
         </div>
 
-        <header className={`absolute inset-x-0 top-0 z-10 ${phase === "cinema" ? "grid" : "sr-only"} grid-cols-[1fr_auto_1fr] items-center px-page py-6 md:py-8`} inert={phase !== "cinema"}>
+        <div aria-hidden="true" className="cinema-blackout pointer-events-none absolute inset-0 z-[2] bg-black" />
+
+        <header className={`cinema-chrome absolute inset-x-0 top-0 z-10 ${phase === "cinema" ? "grid" : "sr-only"} grid-cols-[1fr_auto_1fr] items-center px-page py-6 md:py-8`} inert={phase !== "cinema"}>
           <svg aria-hidden="true" viewBox="0 0 40 40" fill="none" className="size-8">
             <path d="M6 6v28m28-28v28M6 12l14 9 14-9M6 22l14 9 14-9" stroke="currentColor" strokeWidth="3.5" strokeLinecap="square" />
           </svg>
@@ -281,7 +288,7 @@ export function MovieEdit() {
               "--index": index,
               ...(index === 0 && wallPoster && {
                 "--featured-left": `${wallPoster.left}px`,
-                "--featured-bottom": `calc(100cqh - ${wallPoster.bottom + 32}px)`,
+                "--featured-bottom": `calc(100cqh - ${wallPoster.bottom}px)`,
                 "--featured-width": `${wallPoster.right - wallPoster.left}px`,
               }),
             } as CSSProperties}
@@ -334,7 +341,7 @@ export function MovieEdit() {
         {trailer && <TrailerDialog movie={trailer} onClose={closeTrailer} />}
 
         {phase === "cinema" && playback !== "unavailable" && (
-          <div className="absolute inset-x-0 bottom-0 z-[4] flex justify-between gap-2 px-page pb-6 md:pb-8">
+          <div className="cinema-chrome absolute inset-x-0 bottom-0 z-[4] flex justify-between gap-2 px-page pb-6 md:pb-8">
             <button type="button" onClick={togglePlayback} className={control}>
               {playback === "playing" ? "Pause" : "Play"}
             </button>

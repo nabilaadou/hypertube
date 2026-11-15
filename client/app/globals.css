@@ -100,7 +100,9 @@
 }
 
 .cinema-stage {
+  --cinema-dim: 0;
   --wipe: 0;
+  --poster-center: 0;
   --poster-travel: 0;
   --featured-poster-opacity: 0;
   --featured-poster-visibility: hidden;
@@ -110,6 +112,18 @@
   --track-index: 0;
   --card-step: max(31cqw, 9rem);
   --timeline-width: clamp(6.5rem, 17cqw, min(15rem, 46cqh * 2 / 3));
+}
+
+.cinema-blackout {
+  opacity: var(--cinema-dim);
+}
+
+.cinema-chrome {
+  opacity: clamp(0, calc(1 - var(--cinema-dim) + var(--wipe)), 1);
+}
+
+.cinema-chrome:has(:focus-visible) {
+  opacity: 1;
 }
 
 .cinema-timeline {
@@ -184,15 +198,48 @@
 
 .cinema-track-card.cinema-featured-poster {
   --featured-left: var(--spacing-page);
-  --featured-bottom: 16cqh;
+  --featured-bottom: calc(16cqh + 2rem);
   --featured-width: clamp(5rem, 13cqw, 11rem);
-  left: calc(var(--featured-left) + var(--poster-travel) * (52cqw - var(--featured-left)));
-  bottom: calc(var(--featured-bottom) + var(--poster-travel) * (38cqh - var(--featured-bottom)));
-  width: calc(var(--featured-width) + var(--poster-travel) * (var(--timeline-width) - var(--featured-width)));
+  --center-width: clamp(7rem, min(22cqw, 31cqh), 18rem);
+  --center-left: calc((100cqw - var(--center-width)) / 2);
+  --center-bottom: calc(50cqh - var(--center-width) * 0.75);
+  --slot-bottom: calc(38cqh + 2rem);
+  --lifted-left: calc(var(--featured-left) + var(--poster-center) * (var(--center-left) - var(--featured-left)));
+  --lifted-bottom: calc(var(--featured-bottom) + var(--poster-center) * (var(--center-bottom) - var(--featured-bottom)));
+  --lifted-width: calc(var(--featured-width) + var(--poster-center) * (var(--center-width) - var(--featured-width)));
+  left: calc(var(--lifted-left) + var(--poster-travel) * (52cqw - var(--lifted-left)));
+  bottom: calc(var(--lifted-bottom) + var(--poster-travel) * (var(--slot-bottom) - var(--lifted-bottom)));
+  width: calc(var(--lifted-width) + var(--poster-travel) * (var(--timeline-width) - var(--lifted-width)));
   opacity: var(--featured-poster-opacity);
   visibility: var(--featured-poster-visibility);
   translate: calc(-1 * var(--track-index) * var(--card-step));
   transform: perspective(850px) rotateY(calc(var(--poster-turn) * 1deg));
+  transform-style: preserve-3d;
+  filter: none;
+}
+
+.cinema-featured-poster > button,
+.cinema-featured-poster::before {
+  backface-visibility: hidden;
+  box-shadow: 0 12px 20px #0007;
+}
+
+.cinema-featured-poster::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  aspect-ratio: 2 / 3;
+  border: 1px solid var(--color-gold);
+  border-radius: var(--radius-card);
+  background: linear-gradient(145deg, var(--color-quote), var(--color-ink));
+  transform: rotateY(180deg);
+  pointer-events: none;
+}
+
+.cinema-featured-poster figcaption {
+  position: absolute;
+  inset: calc(100% + 0.5rem) 0 auto;
+  opacity: var(--timeline-labels);
 }
 
 @media (prefers-reduced-motion: reduce) {

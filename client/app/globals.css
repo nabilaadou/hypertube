@@ -53,6 +53,7 @@
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
+  filter: brightness(0.25);
 }
 
 .cinema-screen {

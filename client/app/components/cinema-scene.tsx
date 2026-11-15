@@ -3,17 +3,17 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 import {
   ACESFilmicToneMapping,
-  DirectionalLight,
+  Box3,
   DoubleSide,
   Euler,
-  HemisphereLight,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
+  MeshStandardMaterial,
   type Object3D,
   PerspectiveCamera,
-  PointLight,
   Quaternion,
+  RectAreaLight,
   Scene,
   SRGBColorSpace,
   Texture,
@@ -21,6 +21,7 @@ import {
   VideoTexture,
   WebGLRenderer,
 } from "three";
+import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { cinemaMedia } from "../data/movies";
 import { projectionScreenAspect, type ScreenCorners } from "./cinema-projection";
@@ -76,13 +77,16 @@ export default function CinemaScene({
     camera.quaternion.setFromEuler(new Euler(1.41247368, 0, -2.96940184, "ZYX"));
     camera.quaternion.premultiply(new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -Math.PI / 2));
 
-    scene.add(new HemisphereLight(0xffeddb, 0x65516a, 1.05));
-    const fill = new DirectionalLight(0xffe5c3, 1.6);
-    fill.position.set(-0.2, 0.3, -2.4);
-    scene.add(fill);
-    const screenSpill = new PointLight(0xffe8c7, 1.3);
-    screenSpill.position.set(0, 0.02, -0.26);
-    scene.add(screenSpill);
+    RectAreaLightUniformsLib.init();
+    const screenLight = new RectAreaLight(0xfff2e2, 1.5);
+    const screenTint = screenLight.color.clone();
+    const targetTint = screenTint.clone();
+    let targetIntensity = screenLight.intensity;
+    let sampledTime = -Infinity;
+    const sample = document.createElement("canvas");
+    sample.width = 8;
+    sample.height = 4;
+    const sampleContext = sample.getContext("2d", { willReadFrequently: true });
 
     const events = new AbortController();
     const texture = new VideoTexture(video);
@@ -107,6 +111,30 @@ export default function CinemaScene({
     function draw() {
       if (!model || !canvas || !video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
       if (renderer.getContext().isContextLost()) return;
+
+      if (sampleContext && Math.abs(video.currentTime - sampledTime) >= 0.15) {
+        sampledTime = video.currentTime;
+        const width = video.videoWidth * Math.abs(texture.repeat.x);
+        const height = video.videoHeight * texture.repeat.y;
+        const left = (video.videoWidth - width) / 2;
+        const top = (video.videoHeight - height) / 2;
+        sampleContext.drawImage(video, left, top, width, height, 0, 0, sample.width, sample.height);
+        const pixels = sampleContext.getImageData(0, 0, sample.width, sample.height).data;
+        let red = 0;
+        let green = 0;
+        let blue = 0;
+        for (let pixel = 0; pixel < pixels.length; pixel += 4) {
+          red += pixels[pixel];
+          green += pixels[pixel + 1];
+          blue += pixels[pixel + 2];
+        }
+        const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / (sample.width * sample.height * 255);
+        targetIntensity = Math.min(2.6, 4 * luminance);
+        const peak = Math.max(red, green, blue, 1);
+        targetTint.setRGB(red / peak, green / peak, blue / peak, SRGBColorSpace).lerp(screenTint, 0.65);
+      }
+      screenLight.intensity = MathUtils.lerp(screenLight.intensity, targetIntensity, firstFrame ? 1 : 0.15);
+      screenLight.color.lerp(targetTint, firstFrame ? 1 : 0.15);
       renderer.render(scene, camera);
       if (firstFrame) {
         firstFrame = false;
@@ -157,12 +185,32 @@ export default function CinemaScene({
         return;
       }
 
+      const screenBounds = new Box3().setFromObject(screen);
+      const screenSize = screenBounds.getSize(new Vector3());
+      screenLight.width = screenSize.x;
+      screenLight.height = screenSize.y;
+      screenBounds.getCenter(screenLight.position);
+      screenLight.position.z -= 0.01;
+
+      theater.traverse((object) => {
+        if (!(object instanceof Mesh) || object === screen) return;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) {
+          if (!(material instanceof MeshStandardMaterial)) continue;
+          material.emissiveIntensity = 0;
+          if (material.name === "Warm dimmed light panels") {
+            material.color.set(0x241f1b);
+            material.roughness = 0.9;
+          }
+        }
+      });
+
       const original = Array.isArray(screen.material) ? screen.material : [screen.material];
       for (const material of original) material.dispose();
       screen.material = screenMaterial;
       screenMesh = screen;
       model = theater;
-      scene.add(theater);
+      scene.add(theater, screenLight);
       resize();
       drawRef.current = draw;
     }).catch(() => {});

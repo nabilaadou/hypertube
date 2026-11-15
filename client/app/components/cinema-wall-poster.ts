@@ -11,8 +11,8 @@ import {
 } from "three";
 
 export function createCinemaWallPoster(poster: Texture) {
-  const width = 0.28;
-  const height = 0.42;
+  const width = 0.136;
+  const height = 0.204;
   poster.colorSpace = SRGBColorSpace;
   if (poster.image instanceof HTMLImageElement) {
     const imageAspect = poster.image.naturalWidth / poster.image.naturalHeight;
@@ -24,34 +24,47 @@ export function createCinemaWallPoster(poster: Texture) {
   }
 
   const group = new Group();
-  group.position.set(1.0131, 0.01, -0.11942);
-  group.rotation.y = -2.298179;
-  group.translateX(-0.024);
-
   const darkMetal = new MeshStandardMaterial({ color: 0x26201a, metalness: 0.45, roughness: 0.45 });
   const antiqueGold = new MeshStandardMaterial({ color: 0x806242, metalness: 0.52, roughness: 0.43 });
-  const frame = new Mesh(new BoxGeometry(width + 0.018, height + 0.018, 0.014), darkMetal);
-  const frameLip = new Mesh(new BoxGeometry(width + 0.008, height + 0.008, 0.004), antiqueGold);
+  const frame = new Mesh(new BoxGeometry(width + 0.012, height + 0.012, 0.014), darkMetal);
+  const frameLip = new Mesh(new BoxGeometry(width + 0.006, height + 0.006, 0.004), antiqueGold);
   frameLip.position.z = 0.008;
 
   const artwork = new Mesh(new PlaneGeometry(width, height), new MeshStandardMaterial({ map: poster, roughness: 0.85 }));
   artwork.position.z = 0.011;
 
   const lamp = new Group();
-  lamp.position.y = 0.255;
-  const wallMount = new Mesh(new BoxGeometry(0.04, 0.027, 0.01), darkMetal);
-  const arm = new Mesh(new BoxGeometry(0.012, 0.01, 0.10), darkMetal);
-  arm.position.z = 0.049;
-  const shade = new Mesh(new BoxGeometry(0.16, 0.016, 0.025), antiqueGold);
-  shade.position.z = 0.102;
-  const diffuser = new Mesh(new BoxGeometry(0.15, 0.002, 0.019), new MeshBasicMaterial({ color: 0xf2c899, toneMapped: false }));
-  diffuser.position.set(0, -0.009, 0.102);
+  lamp.position.y = 0.175;
+  const wallMount = new Mesh(new BoxGeometry(0.026, 0.02, 0.01), darkMetal);
+  const arm = new Mesh(new BoxGeometry(0.009, 0.008, 0.05), darkMetal);
+  arm.position.z = 0.024;
+  const shade = new Mesh(new BoxGeometry(0.10, 0.013, 0.02), antiqueGold);
+  shade.position.z = 0.05;
+  const diffuser = new Mesh(new BoxGeometry(0.092, 0.002, 0.014), new MeshBasicMaterial({ color: 0xf2c899, toneMapped: false }));
+  diffuser.position.set(0, -0.0075, shade.position.z);
   lamp.add(wallMount, arm, shade, diffuser);
 
-  const light = new SpotLight(0xffddba, 0.42, 0.58, 0.65, 0.68);
-  light.position.set(0, 0.243, 0.104);
-  light.target.position.set(0, -0.045, artwork.position.z);
+  const light = new SpotLight(0xffddba, 0.23, 0.43, 0.54, 0.72);
+  light.position.set(0, lamp.position.y - 0.01, shade.position.z);
+  light.target.position.set(0, -0.024, artwork.position.z);
   group.add(frame, frameLip, artwork, lamp, light, light.target);
 
-  return { group, artwork };
+  function setMount(mount: "side-wall" | "front-panel") {
+    const scale = mount === "side-wall" ? 1 : 1.3;
+    group.scale.setScalar(scale);
+    light.intensity = 0.23 * scale ** 2;
+    light.distance = 0.43 * scale;
+
+    if (mount === "side-wall") {
+      group.position.set(1.112, 0.065, -1.036);
+      group.rotation.y = -Math.PI / 2;
+    } else {
+      group.position.set(1.0131, 0.01, -0.11942);
+      group.rotation.y = -2.298179;
+      group.translateX(-0.024);
+    }
+  }
+
+  setMount("side-wall");
+  return { group, artwork, setMount };
 }

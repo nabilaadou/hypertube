@@ -83,6 +83,7 @@ export default function CinemaScene({
 
     const scene = new Scene();
     const aspect = 1440 / 900;
+    const minimumCinemaAspect = 0.84;
     // Match the Blender camera after converting its Z-up coordinates to Y-up.
     const camera = new PerspectiveCamera(MathUtils.radToDeg(2 * Math.atan(36 / aspect / 42)), aspect, 0.01, 20);
     camera.position.set(-0.44, 0.28, -2.53);
@@ -119,7 +120,7 @@ export default function CinemaScene({
     const screenMaterial = new MeshBasicMaterial({ map: texture, side: DoubleSide, toneMapped: false });
     let model: Object3D | undefined;
     let screenMesh: Mesh | undefined;
-    let wallArtwork: Mesh | undefined;
+    let wallPoster: ReturnType<typeof createCinemaWallPoster> | undefined;
     let ceilingMaterial: MeshStandardMaterial | undefined;
     let firstFrame = true;
 
@@ -165,22 +166,36 @@ export default function CinemaScene({
       if (!canvas?.clientWidth || !canvas.clientHeight) return;
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
+      const stage = canvas.parentElement;
+      const stageWidth = stage?.clientWidth ?? width;
+      const stageHeight = stage?.clientHeight ?? height;
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
+      camera.zoom = Math.min(1, stageWidth / height / minimumCinemaAspect);
       camera.updateProjectionMatrix();
-      if (screenMesh && canvas.parentElement) {
-        const stage = canvas.parentElement;
+      if (screenMesh && stage) {
         camera.updateMatrixWorld();
         function project(mesh: Mesh, index: number) {
           const point = new Vector3().fromBufferAttribute(mesh.geometry.getAttribute("position"), index);
           mesh.localToWorld(point).project(camera);
-          return { x: (stage.clientWidth + point.x * width) / 2, y: (stage.clientHeight - point.y * height) / 2 };
+          return { x: (stageWidth + point.x * width) / 2, y: (stageHeight - point.y * height) / 2 };
         }
         onProjection([project(screenMesh, 3), project(screenMesh, 2), project(screenMesh, 0), project(screenMesh, 1)]);
-        if (wallArtwork) {
-          const corners: ScreenCorners = [project(wallArtwork, 0), project(wallArtwork, 1), project(wallArtwork, 3), project(wallArtwork, 2)];
-          const inView = corners.every(({ x, y }) => x >= 0 && x <= stage.clientWidth && y >= 0 && y <= stage.clientHeight);
-          onWallPosterProjection(inView ? corners : null);
+        if (wallPoster) {
+          const { artwork, setMount } = wallPoster;
+          const projectArtwork = (): ScreenCorners => [project(artwork, 0), project(artwork, 1), project(artwork, 3), project(artwork, 2)];
+          const inset = Math.min(6, stageWidth * 0.015);
+          const fits = (corners: ScreenCorners) => corners.every(({ x, y }) => (
+            x >= inset && x <= stageWidth - inset && y >= 0 && y <= stageHeight
+          ));
+
+          setMount("side-wall");
+          let corners = projectArtwork();
+          if (!fits(corners)) {
+            setMount("front-panel");
+            corners = projectArtwork();
+          }
+          onWallPosterProjection(fits(corners) ? corners : null);
         }
       }
       draw();
@@ -256,9 +271,8 @@ export default function CinemaScene({
           return;
         }
 
-        const { group, artwork } = createCinemaWallPoster(poster);
-        wallArtwork = artwork;
-        theater.add(group);
+        wallPoster = createCinemaWallPoster(poster);
+        theater.add(wallPoster.group);
         resize();
       }).catch(() => {});
     }).catch(() => {});

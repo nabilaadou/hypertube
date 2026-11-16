@@ -28,6 +28,7 @@ const timelineCardHeights = [15, 37, 9, 32, 20];
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 type Playback = "paused" | "playing" | "unavailable";
+type TrailerSelection = { movie: Movie; origin: DOMRectReadOnly; fromTimeline: boolean };
 
 const control = "grid min-h-11 cursor-pointer place-items-center rounded-full border border-white/40 bg-black/65 px-4 font-mono text-xs uppercase";
 
@@ -82,7 +83,7 @@ export function MovieEdit() {
   const [filmIndex, setFilmIndex] = useState(0);
   const [timelineVisible, setTimelineVisible] = useState(false);
   const [timelineLeaving, setTimelineLeaving] = useState(false);
-  const [trailer, setTrailer] = useState<Movie | null>(null);
+  const [trailer, setTrailer] = useState<TrailerSelection | null>(null);
   const trailerTrigger = useRef<HTMLButtonElement | null>(null);
   const resumeEdit = useRef(false);
   const [playback, setPlayback] = useState<Playback>("paused");
@@ -95,6 +96,7 @@ export function MovieEdit() {
     top: Math.min(...wallPosterCorners.map(({ y }) => y)),
     bottom: Math.max(...wallPosterCorners.map(({ y }) => y)),
   };
+  const openTimelineYear = trailer?.fromTimeline ? trailer.movie.awardYear : undefined;
 
   useGSAP(() => {
     const section = stage.current;
@@ -257,6 +259,12 @@ export function MovieEdit() {
     return () => motion.removeEventListener("change", pauseForReducedMotion);
   }, []);
 
+  useEffect(() => {
+    if (trailer || !trailerTrigger.current) return;
+    trailerTrigger.current.focus({ preventScroll: true });
+    trailerTrigger.current = null;
+  }, [trailer]);
+
   function goToFilm(index: number) {
     const scrollArea = runway.current;
     const section = stage.current;
@@ -269,18 +277,18 @@ export function MovieEdit() {
   }
 
   function openTrailer(movie: Movie, trigger: HTMLButtonElement) {
+    const origin = trigger.getBoundingClientRect();
     trailerTrigger.current = trigger;
     const video = videoRef.current;
     resumeEdit.current = Boolean(video && !video.paused);
     video?.pause();
     lenis?.stop();
-    setTrailer(movie);
+    setTrailer({ movie, origin, fromTimeline: trigger.closest(".cinema-track-card") !== null });
   }
 
   function closeTrailer() {
     setTrailer(null);
     lenis?.start();
-    trailerTrigger.current?.focus({ preventScroll: true });
     if (resumeEdit.current) void videoRef.current?.play().catch(() => {});
   }
 
@@ -388,6 +396,7 @@ export function MovieEdit() {
         {phase === "cinema" && bestPictureWinners.map((movie, index) => (
           <figure
             key={movie.awardYear}
+            data-trailer-side={openTimelineYear === undefined ? undefined : movie.awardYear < openTimelineYear ? "before" : movie.awardYear > openTimelineYear ? "after" : "selected"}
             className={`cinema-track-card ${index === 0 ? "cinema-featured-poster" : ""}`}
             style={{
               "--index": index,
@@ -447,7 +456,7 @@ export function MovieEdit() {
           </nav>
         )}
 
-        {trailer && <TrailerDialog movie={trailer} onClose={closeTrailer} />}
+        {trailer && <TrailerDialog movie={trailer.movie} origin={trailer.origin} onClose={closeTrailer} />}
 
         {phase === "cinema" && playback !== "unavailable" && (
           <div className="cinema-controls absolute inset-x-0 bottom-0 z-[4] flex justify-between gap-2 px-page pb-6 md:pb-8">

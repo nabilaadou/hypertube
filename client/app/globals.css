@@ -20,6 +20,12 @@
   --font-mono: var(--font-ibm-plex), monospace;
 }
 
+@property --trailer-offset {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 @layer base {
   body {
     background: var(--color-theater);
@@ -229,7 +235,8 @@
   width: var(--timeline-width);
   margin: 0;
   opacity: calc(var(--timeline-labels) * var(--timeline-content-opacity));
-  translate: var(--card-offset);
+  translate: calc(var(--card-offset) + var(--trailer-offset));
+  transition: --trailer-offset 0.65s cubic-bezier(0.65, 0, 0.35, 1);
   transform:
     perspective(1500px)
     rotateX(calc(var(--cursor-pitch, 0) * 1deg))
@@ -237,6 +244,18 @@
     rotateZ(calc(3.5deg * var(--card-angle)))
     scale(calc(var(--card-scale) + var(--card-hover) * 0.045));
   filter: drop-shadow(0 12px 18px #0008);
+}
+
+.cinema-track-card[data-trailer-side="before"] {
+  --trailer-offset: -15cqw;
+}
+
+.cinema-track-card[data-trailer-side="after"] {
+  --trailer-offset: 15cqw;
+}
+
+.cinema-track-card[data-trailer-side="selected"] {
+  visibility: hidden;
 }
 
 .cinema-track-card > button {
@@ -299,7 +318,7 @@
   width: calc(var(--featured-width) + var(--poster-travel) * (var(--timeline-width) - var(--featured-width)));
   opacity: calc(var(--featured-poster-opacity) * var(--timeline-content-opacity));
   visibility: var(--featured-poster-visibility);
-  translate: calc(var(--poster-travel) * var(--card-offset));
+  translate: calc(var(--poster-travel) * var(--card-offset) + var(--trailer-offset));
   transform:
     perspective(1500px)
     rotateX(calc((var(--poster-pitch) + var(--cursor-pitch, 0) * var(--poster-card-track-pose)) * 1deg))
@@ -310,6 +329,10 @@
 
 .cinema-featured-poster:has(.cinema-paper-sheet[data-ready="true"]) {
   --poster-card-yaw: calc(var(--poster-turn) * (1 - var(--poster-paper)));
+}
+
+.cinema-featured-poster[data-trailer-side="selected"] {
+  visibility: hidden;
 }
 
 .cinema-featured-poster > button {
@@ -393,6 +416,7 @@
   .cinema-track-card,
   .cinema-track-card.cinema-featured-poster {
     transform: none;
+    transition: none;
   }
 
   .cinema-timeline-exit-copy {

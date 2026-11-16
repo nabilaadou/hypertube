@@ -158,10 +158,8 @@ export function MovieEdit() {
           "--timeline-field-opacity": 0,
           "--quote-visibility": "visible",
           "--quote-background": 1,
-          "--quote-x": "0cqw",
-          "--quote-y": "0cqh",
           "--quote-scale": 1,
-          "--quote-edge": "-24%",
+          "--quote-opacity": 1,
           "--quote-fill": "100%",
           "--quote-marks-y": "0cqh",
           "--quote-credit-y": "0cqh",
@@ -173,11 +171,10 @@ export function MovieEdit() {
           .to(section, { "--timeline-field-opacity": 0, duration: 0.29, ease: "none" }, 0.18)
           .to(section, { "--timeline-content-opacity": 0, duration: 0.08, ease: "none" }, 0.43)
           .set(section, { "--quote-visibility": "visible" }, 0.25)
-          .to(section, { "--quote-x": "53cqw", "--quote-edge": "32%", duration: 0.12, ease: "none" }, 0.25)
-          .to(section, { "--quote-x": "0cqw", "--quote-edge": "-24%", duration: 0.2, ease: "sine.out" }, 0.37)
+          .to(section, { "--quote-opacity": 1, duration: 0.32, ease: "sine.inOut" }, 0.25)
           .to(section, { "--quote-scale": 3.75, duration: 0.25, ease: "none" }, 0.25)
-          .to(section, { "--quote-scale": 2.15, "--quote-y": "4cqh", duration: 0.2, ease: "none" }, 0.5)
-          .to(section, { "--quote-scale": 1.15, "--quote-y": "0cqh", duration: 0.2, ease: "sine.out" }, 0.7)
+          .to(section, { "--quote-scale": 2.15, duration: 0.2, ease: "none" }, 0.5)
+          .to(section, { "--quote-scale": 1.15, duration: 0.2, ease: "sine.out" }, 0.7)
           .to(section, { "--quote-scale": 1, duration: 0.1, ease: "sine.out" }, 0.9)
           .to(section, { "--quote-background": 1, duration: 0.34, ease: "sine.inOut" }, 0.65)
           .to(section, { "--quote-fill": "100%", duration: 0.25, ease: "none" }, 0.7)

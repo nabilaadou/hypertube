@@ -132,10 +132,8 @@ html::-webkit-scrollbar {
   --timeline-field-opacity: 1;
   --quote-visibility: hidden;
   --quote-background: 0;
-  --quote-x: 140cqw;
-  --quote-y: 10cqh;
   --quote-scale: 5.1;
-  --quote-edge: 63%;
+  --quote-opacity: 0;
   --quote-fill: -25%;
   --quote-marks-y: -74cqh;
   --quote-credit-y: 62cqh;
@@ -524,8 +522,8 @@ html::-webkit-scrollbar {
   color: #b6ae9f;
   font: 800 clamp(2rem, min(8.2cqw, 12.8cqh), 7.5rem) / 1.22 var(--font-firjar-arabic), Tahoma, sans-serif;
   font-stretch: 75%;
-  transform: translate(var(--quote-x), var(--quote-y)) scale(var(--quote-scale));
-  mask-image: linear-gradient(to right, transparent var(--quote-edge), #000 calc(var(--quote-edge) + 24%));
+  opacity: var(--quote-opacity);
+  transform: scale(var(--quote-scale));
 }
 
 .hypertube-quote-credit {

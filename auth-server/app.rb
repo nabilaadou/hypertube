@@ -5,6 +5,9 @@ require "net/http"
 require "securerandom"
 
 class AuthServer < Sinatra::Base
+  LOGIN_COMPLETE_PATH = "/api/auth/complete".freeze
+  LOGIN_CODE_FORMAT = /\A[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\z/
+
   set :show_exceptions, false
   set :dump_errors, false
   set :absolute_redirects, false
@@ -19,43 +22,56 @@ class AuthServer < Sinatra::Base
     def h(value)
       Rack::Utils.escape_html(value.to_s)
     end
+
+    def create_login_handoff(identity)
+      handoff_url = settings.login_handoff_url
+      handoff_request = Net::HTTP::Post.new(handoff_url)
+      handoff_request["Authorization"] = "Bearer #{settings.login_handoff_secret}"
+      handoff_request["Content-Type"] = "application/json"
+      handoff_request.body = JSON.generate(identity)
+
+      handoff_response = Net::HTTP.start(handoff_url.host, handoff_url.port,
+                                         use_ssl: handoff_url.scheme == "https",
+                                         open_timeout: 3, read_timeout: 5) do |http|
+        http.request(handoff_request)
+      end
+
+      login_code = handoff_response.body.to_s
+      unless handoff_response.is_a?(Net::HTTPOK) && LOGIN_CODE_FORMAT.match?(login_code)
+        halt 502, "Spring Boot could not finish sign-in. Return to the sign-in page and retry."
+      end
+
+      login_code
+    rescue Timeout::Error, IOError, SystemCallError, SocketError
+      halt 502, "Spring Boot is unavailable. Return to the sign-in page and retry."
+    end
   end
 
   get "/" do
-    @failure = session.delete("failure")
-    @csrf = Rack::Protection::AuthenticityToken.token(session)
+    @sign_in_failure = session.delete("failure")
+    @csrf_token = Rack::Protection::AuthenticityToken.token(session)
     erb :index
   end
 
   get "/auth/:provider/callback" do
-    auth = request.env["omniauth.auth"]
-    halt 404 unless auth && settings.providers.dig(params[:provider], :enabled)
+    provider_account = request.env["omniauth.auth"]
+    provider = settings.providers[provider_account&.provider]
+    halt 404 unless provider&.fetch(:enabled)
 
-    proof = SecureRandom.hex(32)
+    browser_proof = SecureRandom.hex(32)
     identity = {
-      provider: auth.provider == "marvin" ? "42" : "google",
-      providerUserId: auth.uid.to_s,
-      displayName: auth.info.name.to_s.strip[0, 128],
-      email: auth.info.email.to_s.strip[0, 254],
-      proofHash: Digest::SHA256.hexdigest(proof)
+      provider: provider.fetch(:id),
+      providerUserId: provider_account.uid.to_s,
+      displayName: provider_account.info.name.to_s.strip[0, 128],
+      email: provider_account.info.email.to_s.strip[0, 254],
+      proofHash: Digest::SHA256.hexdigest(browser_proof)
     }
-    handoff = Net::HTTP::Post.new(settings.handoff_url)
-    handoff["Authorization"] = "Bearer #{settings.handoff_secret}"
-    handoff["Content-Type"] = "application/json"
-    handoff.body = JSON.generate(identity.transform_values { |value| value.empty? ? nil : value })
-    result = Net::HTTP.start(settings.handoff_url.host, settings.handoff_url.port,
-                             use_ssl: settings.handoff_url.scheme == "https",
-                             open_timeout: 3, read_timeout: 5) { |http| http.request(handoff) }
-    unless result.is_a?(Net::HTTPOK) && result.body.to_s.match?(/\A[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\z/)
-      halt 502, "Spring Boot could not finish sign-in. Return to the sign-in page and retry."
-    end
+    login_code = create_login_handoff(identity.transform_values { |value| value.empty? ? nil : value })
 
-    response.set_cookie("hypertube_login_proof", value: proof, path: "/api/auth/complete",
+    response.set_cookie("hypertube_login_proof", value: browser_proof, path: LOGIN_COMPLETE_PATH,
                         max_age: 120, httponly: true, same_site: :lax,
                         secure: settings.spring_public_url.scheme == "https")
-    redirect "#{settings.spring_public_url}/api/auth/complete?code=#{result.body}", 303
-  rescue Timeout::Error, IOError, SystemCallError, SocketError
-    halt 502, "Spring Boot is unavailable. Return to the sign-in page and retry."
+    redirect "#{settings.spring_public_url.origin}#{LOGIN_COMPLETE_PATH}?code=#{login_code}", 303
   end
 
   error do

@@ -4,7 +4,7 @@ The Spring Boot API lives in `server/`. The Next.js app lives in `client/`.
 
 ## Run with Docker
 
-Install Docker with Compose 2.24 or newer and Make. From the repository root, copy the PostgreSQL configuration template.
+Install Docker with Compose 2.24 or newer and Make. From the repository root, copy the Docker environment template.
 
 ```sh
 cp .env.example .env
@@ -20,7 +20,7 @@ Open `http://localhost:3000`. The API is available at `http://localhost:8080/api
 
 PostgreSQL is available at `localhost:5432` from the host and `postgres:5432` from other services. The database, user, and password come from the root `.env` when the database volume is first initialized.
 
-Compose reads `client/.env` if it exists and sets `BACKEND_URL` to `http://server:8080` for the connection between containers. Restart `make up` to apply changes to `client/.env`. If a host port is busy, set `HYPERTUBE_CLIENT_PORT`, `HYPERTUBE_SERVER_PORT`, or `HYPERTUBE_POSTGRES_PORT` before starting Compose. For example, `HYPERTUBE_CLIENT_PORT=3100 make up` serves the frontend at `http://localhost:3100`.
+Compose reads service settings from the root `.env`. If you already have one, add any missing settings from `.env.example`. To change a host port, edit `HYPERTUBE_CLIENT_PORT`, `HYPERTUBE_SERVER_PORT`, or `HYPERTUBE_POSTGRES_PORT` in `.env` and restart `make up`. For example, `HYPERTUBE_CLIENT_PORT=3100` serves the frontend at `http://localhost:3100`.
 
 Press Ctrl+C to stop the services. Run `make down` to remove the containers and network while keeping PostgreSQL data. Run `make clean` to also delete the database volume, orphaned project containers, and images built for Hypertube.
 
@@ -57,16 +57,18 @@ Open `http://localhost:3000`. The home page reports whether it can reach the API
 
 ## Test 42 and Google sign-in
 
-Copy the auth server's local environment template and generate a session secret.
+Use the root `.env` from the Docker setup above. If you have an existing `auth-server/.env`, move its values for `AUTH_BASE_URL`, `AUTH_SESSION_SECRET`, and the provider credentials into the root `.env`.
+
+Generate the two secrets.
 
 ```sh
-cp auth-server/.env.example auth-server/.env
-openssl rand -hex 64
+openssl rand -hex 64  # AUTH_SESSION_SECRET
+openssl rand -hex 32  # AUTH_HANDOFF_SECRET
 ```
 
-Paste the generated value into `AUTH_SESSION_SECRET` in `auth-server/.env`. Add the client ID and secret for each provider you want to test. You can configure either provider on its own. Run `openssl rand -hex 32` and set `AUTH_HANDOFF_SECRET` in the root `.env` to the output. Compose passes that shared secret to Sinatra and Spring Boot.
+Set both secrets in `.env` along with the client ID and secret for each provider you want to test. You can configure either provider on its own.
 
-Register these exact redirect URIs with your 42 application and Google **Web application** OAuth client. If Google OAuth is in testing mode, add the Google account you plan to use as a test user.
+Register the redirect URIs with your 42 application and Google **Web application** OAuth client. These are the URIs for the ports in `.env.example`. If Google OAuth is in testing mode, add the Google account you plan to use as a test user.
 
 | Provider | Redirect URI |
 | --- | --- |
@@ -79,7 +81,7 @@ docker compose up --build auth-server
 
 Open `http://localhost:4567` and select a provider. After a successful callback, Spring Boot saves the user in PostgreSQL, starts a browser session, and redirects to `http://localhost:8080/api/auth/me`. The JSON response contains the database ID, provider, provider user ID, and available name and email. Repeat sign-ins with the same provider account reuse the database ID. `/api/auth/me` returns `401` without a Hypertube session.
 
-Run the Compose command again after changing an `.env` file. Open the sign-in page using `localhost` so the browser can send the same cookies to the OAuth callback and Spring Boot. The auth service starts Spring Boot and PostgreSQL as dependencies.
+Run the Compose command again after changing `.env`. Use the same browser-facing hostname and scheme in `AUTH_BASE_URL` and `SPRING_PUBLIC_URL` so the browser can carry the login cookie to Spring Boot. The auth service starts Spring Boot and PostgreSQL as dependencies.
 
 ## Verify changes
 
@@ -90,4 +92,4 @@ From the repository root, run the API smoke test and check the frontend.
 (cd client && npm ci && npm run lint && npm run build)
 ```
 
-With both apps running, `curl -fsS http://localhost:8080/api/health` should return `{"status":"UP"}` and the home page should show “API is online.” To check the configuration diagnostic, clear `BACKEND_URL` in `client/.env`, restart Next.js, and reload the page.
+With both apps running, `curl -fsS http://localhost:8080/api/health` should return `{"status":"UP"}` and the home page should show “API is online.” To check the configuration diagnostic, clear `BACKEND_URL` in the `.env` used to start the client, restart it, and reload the page.

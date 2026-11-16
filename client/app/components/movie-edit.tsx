@@ -98,6 +98,12 @@ export function MovieEdit() {
   };
   const openTimelineYear = trailer?.fromTimeline ? trailer.movie.awardYear : undefined;
 
+  function trailerSide(year: number) {
+    if (openTimelineYear === undefined) return undefined;
+    if (year === openTimelineYear) return "selected";
+    return year < openTimelineYear ? "before" : "after";
+  }
+
   useGSAP(() => {
     const section = stage.current;
     const scrollArea = runway.current;
@@ -372,7 +378,12 @@ export function MovieEdit() {
           </h2>
           <div aria-hidden="true" className="cinema-year-track cinema-timeline-label">
             {bestPictureWinners.map((film, index) => (
-              <span key={film.awardYear} style={{ "--index": index } as CSSProperties}>{film.awardYear}</span>
+              <span
+                key={film.awardYear}
+                data-current={filmIndex === index}
+                data-trailer-side={trailerSide(film.awardYear)}
+                style={{ "--index": index } as CSSProperties}
+              >{film.awardYear}</span>
             ))}
           </div>
           <p aria-hidden="true" className="cinema-timeline-exit-copy hypertube-statement-title">Every film opens<br />another world.</p>
@@ -396,7 +407,7 @@ export function MovieEdit() {
         {phase === "cinema" && bestPictureWinners.map((movie, index) => (
           <figure
             key={movie.awardYear}
-            data-trailer-side={openTimelineYear === undefined ? undefined : movie.awardYear < openTimelineYear ? "before" : movie.awardYear > openTimelineYear ? "after" : "selected"}
+            data-trailer-side={trailerSide(movie.awardYear)}
             className={`cinema-track-card ${index === 0 ? "cinema-featured-poster" : ""}`}
             style={{
               "--index": index,

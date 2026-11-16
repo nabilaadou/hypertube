@@ -215,7 +215,7 @@ html::-webkit-scrollbar,
 
 .cinema-year-track {
   position: absolute;
-  inset: 73% 0 auto;
+  inset: 80% 0 auto;
   pointer-events: none;
   color: #b0a0c340;
   font: 800 clamp(3rem, min(8.7cqw, 15cqh), 9rem) / 0.8 var(--font-barlow), Impact, sans-serif;
@@ -225,14 +225,22 @@ html::-webkit-scrollbar,
 
 .cinema-year-track span {
   position: absolute;
-  left: 18cqw;
-  transform: translateX(calc(var(--index) * 38cqw + var(--grid-offset))) scaleX(0.6);
-  transform-origin: left;
+  left: 50%;
+  translate: calc(var(--card-offset) + var(--trailer-offset));
+  transform: translateX(-50%) scaleX(0.6);
+}
+
+.cinema-year-track span[data-current="true"] {
+  color: #c3afda70;
+}
+
+:is(.cinema-track-card, .cinema-year-track span) {
+  --card-distance: calc(var(--index) + var(--track-offset));
+  --card-offset: calc(var(--card-distance) * var(--card-step));
+  transition: --trailer-offset 0.65s cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 .cinema-track-card {
-  --card-distance: calc(var(--index) + var(--track-offset));
-  --card-offset: calc(var(--card-distance) * var(--card-step));
   --card-angle: clamp(-1, var(--card-distance) * 0.64, 1);
   --card-scale: calc(1.07 - 0.13 * max(var(--card-angle), -1 * var(--card-angle)));
   --card-top-position: calc((var(--card-top, 15) + var(--timeline-card-drop)) * 1cqh);
@@ -246,7 +254,6 @@ html::-webkit-scrollbar,
   margin: 0;
   opacity: calc(var(--timeline-labels) * var(--timeline-content-opacity));
   translate: calc(var(--card-offset) + var(--trailer-offset));
-  transition: --trailer-offset 0.65s cubic-bezier(0.65, 0, 0.35, 1);
   transform:
     perspective(1500px)
     rotateX(calc(var(--cursor-pitch, 0) * 1deg))
@@ -256,15 +263,15 @@ html::-webkit-scrollbar,
   filter: drop-shadow(0 12px 18px #0008);
 }
 
-.cinema-track-card[data-trailer-side="before"] {
+:is(.cinema-track-card, .cinema-year-track span)[data-trailer-side="before"] {
   --trailer-offset: -15cqw;
 }
 
-.cinema-track-card[data-trailer-side="after"] {
+:is(.cinema-track-card, .cinema-year-track span)[data-trailer-side="after"] {
   --trailer-offset: 15cqw;
 }
 
-.cinema-track-card[data-trailer-side="selected"] {
+:is(.cinema-track-card, .cinema-year-track span)[data-trailer-side="selected"] {
   visibility: hidden;
 }
 
@@ -398,9 +405,6 @@ html::-webkit-scrollbar,
     --timeline-card-drop: 10;
   }
 
-  .cinema-year-track {
-    left: -6cqw;
-  }
 }
 
 @media (height < 32rem) {
@@ -423,6 +427,10 @@ html::-webkit-scrollbar,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .cinema-year-track span {
+    transition: none;
+  }
+
   .cinema-track-card,
   .cinema-track-card.cinema-featured-poster {
     transform: none;

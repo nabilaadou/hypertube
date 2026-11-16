@@ -12,6 +12,7 @@ import type { createCinemaPaperSurface, PaperPose } from "./cinema-paper-surface
 import { projectVideo, type ScreenCorners } from "./cinema-projection";
 import { HypertubeStatement } from "./hypertube-statement";
 import { Noise } from "./noise";
+import { createQuoteParticleSurface } from "./quote-particle-surface";
 import { TrailerDialog } from "./trailer-dialog";
 import { useCinemaReveal } from "./use-cinema-reveal";
 
@@ -58,6 +59,8 @@ export function MovieEdit() {
   const videoLayer = useRef<HTMLDivElement>(null);
   const worldLayer = useRef<HTMLDivElement>(null);
   const paperCanvas = useRef<HTMLCanvasElement>(null);
+  const quoteCanvas = useRef<HTMLCanvasElement>(null);
+  const quoteTitle = useRef<HTMLHeadingElement>(null);
   const paperSurface = useRef<ReturnType<typeof createCinemaPaperSurface>>(null);
   const paperPose = useRef<PaperPose>({ curl: 0, twist: 0, ripple: 0, turn: 0 });
   const corners = useRef<ScreenCorners | null>(null);
@@ -126,6 +129,9 @@ export function MovieEdit() {
     }, ({ conditions }) => {
       const reduced = conditions?.reduced;
       const scrub = reduced ? true : 0.3;
+      const quoteParticles = !reduced && CSS.supports("background-clip", "text") && quoteCanvas.current && quoteTitle.current
+        ? createQuoteParticleSurface(quoteCanvas.current, quoteTitle.current)
+        : null;
       gsap.to(section, {
         "--track-index": lastFilm,
         ease: "none",
@@ -143,7 +149,13 @@ export function MovieEdit() {
       });
       const quoteTransition = gsap.timeline({
         onUpdate() {
-          setTimelineLeaving(this.time() >= (reduced ? 0.42 : 0.27));
+          const progress = this.time();
+          setTimelineLeaving(progress >= (reduced ? 0.42 : 0.27));
+          quoteParticles?.draw(
+            progress,
+            Number(section.style.getPropertyValue("--quote-scale")) || 1,
+            Number.parseFloat(section.style.getPropertyValue("--quote-fill") || "-25%"),
+          );
         },
         scrollTrigger: {
           trigger: scrollArea,
@@ -231,6 +243,7 @@ export function MovieEdit() {
           .to(section, { "--poster-caption": 1, duration: 0.06, ease: "power1.out" }, 0.94)
           .set(section, { "--poster-paper": 0 }, 0.99);
         return () => {
+          quoteParticles?.dispose();
           section.style.removeProperty("--poster-turn");
           section.style.removeProperty("--poster-face");
           setWallArtworkVisible(true);
@@ -426,7 +439,7 @@ export function MovieEdit() {
               </button>
             ))}
           </nav>
-          <HypertubeStatement />
+          <HypertubeStatement canvasRef={quoteCanvas} titleRef={quoteTitle} />
         </section>
 
         {phase === "cinema" && wallPoster && playback !== "unavailable" && (

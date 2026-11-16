@@ -134,6 +134,7 @@ html::-webkit-scrollbar {
   --quote-background: 0;
   --quote-scale: 5.1;
   --quote-opacity: 0;
+  --quote-ink: #b6ae9f;
   --quote-fill: -25%;
   --quote-marks-y: -74cqh;
   --quote-credit-y: 62cqh;
@@ -512,6 +513,13 @@ html::-webkit-scrollbar {
   max-width: calc(100cqw - 2 * var(--spacing-page));
 }
 
+.hypertube-quote-particles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .hypertube-quote-marks {
   color: #837b6d;
   font: 900 clamp(2.75rem, 6.3cqw, 5.5rem) / 0.65 var(--font-dm-sans), sans-serif;
@@ -519,7 +527,7 @@ html::-webkit-scrollbar {
 }
 
 .hypertube-statement-title {
-  color: #b6ae9f;
+  color: var(--quote-ink);
   font: 800 clamp(2rem, min(8.2cqw, 12.8cqh), 7.5rem) / 1.22 var(--font-firjar-arabic), Tahoma, sans-serif;
   font-stretch: 75%;
   opacity: var(--quote-opacity);
@@ -537,9 +545,13 @@ html::-webkit-scrollbar {
   .hypertube-statement-title {
     color: transparent;
     background:
-      linear-gradient(145deg, #b6ae9f var(--quote-fill), transparent var(--quote-fill)),
-      radial-gradient(circle, #b6ae9f 0.62px, transparent 0.85px) 0 0 / 2.6px 2.6px;
+      linear-gradient(145deg, var(--quote-ink) var(--quote-fill), transparent var(--quote-fill)),
+      radial-gradient(circle, var(--quote-ink) 0.62px, transparent 0.85px) 0 0 / 2.6px 2.6px;
     background-clip: text;
+  }
+
+  .hypertube-statement:has(.hypertube-quote-particles[data-ready="true"]) .hypertube-statement-title {
+    background-image: linear-gradient(145deg, var(--quote-ink) var(--quote-fill), transparent var(--quote-fill));
   }
 }
 

@@ -469,3 +469,62 @@ html::-webkit-scrollbar,
     background-clip: text;
   }
 }
+
+.cinema-control-icon {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  forced-color-adjust: none;
+}
+
+.cinema-control-icon::before,
+.cinema-control-icon::after {
+  position: absolute;
+  content: "";
+}
+
+.cinema-playback-icon::before {
+  inset: 3px 2px 3px 5px;
+  background: currentColor;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+.cinema-playback-icon[data-playing="true"]::before {
+  inset: 3px 4px;
+  background: linear-gradient(to right, currentColor 4px, transparent 4px 8px, currentColor 8px);
+  clip-path: none;
+}
+
+.cinema-lights-icon::before {
+  inset: 1px 4px 7px;
+  border: 1.5px solid currentColor;
+  border-radius: 50% 50% 43% 43%;
+}
+
+.cinema-lights-icon::after {
+  inset: 13px 7px 2px;
+  border-block: 1.5px solid currentColor;
+  border-radius: 1px;
+}
+
+[aria-pressed="true"] .cinema-lights-icon::before {
+  background: currentColor;
+}
+
+.cinema-sound-icon::before {
+  inset: 2px 9px 2px 1px;
+  background: currentColor;
+  clip-path: polygon(0 32%, 35% 32%, 100% 0, 100% 100%, 35% 68%, 0 68%);
+}
+
+.cinema-sound-icon::after {
+  inset: 1px 0 1px 11px;
+  background: radial-gradient(circle at left, transparent 3px, currentColor 3.5px 4.5px, transparent 5px 7px, currentColor 7.5px 8.5px, transparent 9px);
+}
+
+[aria-pressed="false"] .cinema-sound-icon::after {
+  inset: 7px 0 6px 13px;
+  background:
+    linear-gradient(45deg, transparent 43%, currentColor 43% 57%, transparent 57%),
+    linear-gradient(-45deg, transparent 43%, currentColor 43% 57%, transparent 57%);
+}

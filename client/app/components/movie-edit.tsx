@@ -30,7 +30,7 @@ gsap.registerPlugin(useGSAP, ScrollTrigger);
 type Playback = "paused" | "playing" | "unavailable";
 type TrailerSelection = { movie: Movie; origin: DOMRectReadOnly; fromTimeline: boolean };
 
-const control = "grid min-h-11 cursor-pointer place-items-center rounded-full border border-white/40 bg-black/65 px-4 font-mono text-xs uppercase";
+const control = "grid size-11 shrink-0 cursor-pointer place-items-center rounded-full border border-white/40 bg-black/65";
 
 function tiltTimelinePoster(event: PointerEvent<HTMLElement>) {
   if (event.pointerType !== "mouse") return;
@@ -311,6 +311,8 @@ export function MovieEdit() {
     if (video) video.muted = !video.muted;
   }
 
+  const playbackAction = playback === "playing" ? "Pause" : "Play";
+
   return (
     <div ref={runway} style={{ minHeight: `${(1 + timelineEnd + timelineExitViewports) * 100}svh` }}>
       <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} data-timeline-active={timelineVisible} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
@@ -471,8 +473,8 @@ export function MovieEdit() {
 
         {phase === "cinema" && playback !== "unavailable" && (
           <div className="cinema-controls absolute inset-x-0 bottom-0 z-[4] flex justify-between gap-2 px-page pb-6 md:pb-8">
-            <button type="button" onClick={togglePlayback} className={control}>
-              {playback === "playing" ? "Pause" : "Play"}
+            <button type="button" aria-label={playbackAction} title={playbackAction} onClick={togglePlayback} className={control}>
+              <span aria-hidden="true" className="cinema-control-icon cinema-playback-icon" data-playing={playback === "playing"} />
             </button>
             <div className="flex gap-2">
               {!timelineVisible && (
@@ -480,14 +482,15 @@ export function MovieEdit() {
                   type="button"
                   aria-label="Cinema lights"
                   aria-pressed={lightsOn}
+                  title="Cinema lights"
                   onClick={() => setLightsOn((on) => !on)}
-                  className={`${control} aria-pressed:border-gold`}
+                  className={`${control} aria-pressed:border-gold aria-pressed:text-gold`}
                 >
-                  {lightsOn ? "Lights on" : "Lights off"}
+                  <span aria-hidden="true" className="cinema-control-icon cinema-lights-icon" />
                 </button>
               )}
-              <button type="button" aria-label="Sound" aria-pressed={!muted} onClick={toggleSound} className={control}>
-                {muted ? "Sound off" : "Sound on"}
+              <button type="button" aria-label="Sound" aria-pressed={!muted} title="Sound" onClick={toggleSound} className={control}>
+                <span aria-hidden="true" className="cinema-control-icon cinema-sound-icon" />
               </button>
             </div>
           </div>

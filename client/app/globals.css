@@ -220,21 +220,49 @@
   --card-angle: clamp(-1, var(--card-distance) * 0.64, 1);
   --card-scale: calc(1.07 - 0.13 * max(var(--card-angle), -1 * var(--card-angle)));
   --card-top-position: calc((var(--card-top, 15) + var(--timeline-card-drop)) * 1cqh);
+  --card-hover: 0;
   position: absolute;
   z-index: 3;
   display: grid;
   top: var(--card-top-position);
-  left: calc(var(--track-left) + var(--card-offset));
+  left: var(--track-left);
   width: var(--timeline-width);
   margin: 0;
   opacity: calc(var(--timeline-labels) * var(--timeline-content-opacity));
-  transform: perspective(850px) rotateY(calc(-20deg * var(--card-angle))) rotateZ(calc(3.5deg * var(--card-angle))) scale(var(--card-scale));
+  translate: var(--card-offset);
+  transform:
+    perspective(1500px)
+    rotateX(calc(var(--cursor-pitch, 0) * 1deg))
+    rotateY(calc(20deg * var(--card-angle) + var(--cursor-yaw, 0) * 1deg))
+    rotateZ(calc(3.5deg * var(--card-angle)))
+    scale(calc(var(--card-scale) + var(--card-hover) * 0.045));
   filter: drop-shadow(0 12px 18px #0008);
 }
 
 .cinema-track-card > button {
   border-color: #c79b5b;
   border-radius: 2px;
+}
+
+.cinema-stage[data-timeline-active="true"] .cinema-track-card > button:not(:focus-visible) {
+  outline: 2px solid #c79b5b;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .cinema-stage[data-timeline-active="true"] .cinema-track-card:hover {
+    z-index: 4;
+    --card-hover: 1;
+  }
+
+  .cinema-stage[data-timeline-active="true"] .cinema-track-card > button::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: calc(var(--card-hover) * 0.28);
+    background: linear-gradient(110deg, transparent 36%, #fff9 49%, transparent 61%) var(--cursor-light, 50%) 0 / 260% 100%;
+    mix-blend-mode: screen;
+  }
 }
 
 .cinema-card-caption {
@@ -266,17 +294,18 @@
   --poster-card-track-pose: calc(var(--poster-travel) * (1 - var(--poster-paper)));
   --card-bottom-position: calc(100cqh - var(--card-top-position) - var(--timeline-width) * 1.5);
   top: auto;
-  left: calc(var(--featured-left) + var(--poster-travel) * (var(--track-left) + var(--card-offset) - var(--featured-left)));
+  left: calc(var(--featured-left) + var(--poster-travel) * (var(--track-left) - var(--featured-left)));
   bottom: calc(var(--featured-bottom) + var(--poster-travel) * (var(--card-bottom-position) - var(--featured-bottom)) + var(--poster-lift) * 1cqh);
   width: calc(var(--featured-width) + var(--poster-travel) * (var(--timeline-width) - var(--featured-width)));
   opacity: calc(var(--featured-poster-opacity) * var(--timeline-content-opacity));
   visibility: var(--featured-poster-visibility);
+  translate: calc(var(--poster-travel) * var(--card-offset));
   transform:
-    perspective(850px)
-    rotateX(calc(var(--poster-pitch) * 1deg))
-    rotateY(calc(var(--poster-card-yaw) * 1deg - 20deg * var(--card-angle) * var(--poster-card-track-pose)))
+    perspective(1500px)
+    rotateX(calc((var(--poster-pitch) + var(--cursor-pitch, 0) * var(--poster-card-track-pose)) * 1deg))
+    rotateY(calc((var(--poster-card-yaw) + (20 * var(--card-angle) + var(--cursor-yaw, 0)) * var(--poster-card-track-pose)) * 1deg))
     rotateZ(calc(var(--poster-roll) * 1deg + 3.5deg * var(--card-angle) * var(--poster-card-track-pose)))
-    scale(calc(1 + (var(--card-scale) - 1) * var(--poster-card-track-pose)));
+    scale(calc(1 + (var(--card-scale) - 1 + var(--card-hover) * 0.045) * var(--poster-card-track-pose)));
 }
 
 .cinema-featured-poster:has(.cinema-paper-sheet[data-ready="true"]) {
@@ -390,6 +419,11 @@
   .hypertube-statement-title {
     color: transparent;
     background: radial-gradient(circle, #f1ede4 0.8px, #ccc0cb 1.2px, #a99ba9 1.55px) 0 0 / 4px 4px;
+    background-clip: text;
+  }
+
+  .cinema-timeline-exit-copy {
+    background: radial-gradient(circle, #ead9ce 0.7px, transparent 0.95px) 0 0 / 4px 4px;
     background-clip: text;
   }
 }

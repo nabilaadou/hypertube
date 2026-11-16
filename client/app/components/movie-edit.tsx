@@ -6,7 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useLenis } from "lenis/react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { bestPictureWinners, cinemaMedia, type Movie } from "../data/movies";
 import type { createCinemaPaperSurface, PaperPose } from "./cinema-paper-surface";
 import { projectVideo, type ScreenCorners } from "./cinema-projection";
@@ -17,10 +17,11 @@ const CinemaScene = dynamic(() => import("./cinema-scene"), { ssr: false });
 
 const featured = bestPictureWinners[0];
 const handoffViewports = 1.8;
-const timelineHoldViewports = 0.5;
-const filmViewports = 0.7;
+const timelineExitViewports = 0.9;
+const filmViewports = 0.66;
 const lastFilm = bestPictureWinners.length - 1;
 const timelineStart = handoffViewports;
+const timelineEnd = timelineStart + filmViewports * lastFilm;
 const paperLiftOff = 0.001;
 const timelineCardHeights = [15, 37, 9, 32, 20];
 
@@ -29,6 +30,24 @@ gsap.registerPlugin(useGSAP, ScrollTrigger);
 type Playback = "paused" | "playing" | "unavailable";
 
 const control = "grid min-h-11 cursor-pointer place-items-center rounded-full border border-white/40 bg-black/65 px-4 font-mono text-xs uppercase";
+
+function tiltTimelinePoster(event: PointerEvent<HTMLElement>) {
+  if (event.pointerType !== "mouse") return;
+  const card = event.currentTarget;
+  const { left, top, width, height } = card.getBoundingClientRect();
+  const x = gsap.utils.clamp(0, 1, (event.clientX - left) / width);
+  const y = gsap.utils.clamp(0, 1, (event.clientY - top) / height);
+  card.style.setProperty("--cursor-yaw", String((x - 0.5) * 24));
+  card.style.setProperty("--cursor-pitch", String((0.5 - y) * 18));
+  card.style.setProperty("--cursor-light", `${x * 100}%`);
+}
+
+function resetTimelinePoster(event: PointerEvent<HTMLElement>) {
+  const style = event.currentTarget.style;
+  style.removeProperty("--cursor-yaw");
+  style.removeProperty("--cursor-pitch");
+  style.removeProperty("--cursor-light");
+}
 
 export function MovieEdit() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -62,6 +81,7 @@ export function MovieEdit() {
   const [wallArtworkVisible, setWallArtworkVisible] = useState(true);
   const [filmIndex, setFilmIndex] = useState(0);
   const [timelineVisible, setTimelineVisible] = useState(false);
+  const [timelineLeaving, setTimelineLeaving] = useState(false);
   const [trailer, setTrailer] = useState<Movie | null>(null);
   const trailerTrigger = useRef<HTMLButtonElement | null>(null);
   const resumeEdit = useRef(false);
@@ -84,22 +104,9 @@ export function MovieEdit() {
     const resize = new ResizeObserver(() => updateProjection(revealProgress.current));
     resize.observe(section);
 
-    function syncTimeline({ progress, start }: ScrollTrigger) {
-      setFilmIndex(Math.round(progress * lastFilm));
+    function syncTimeline({ start }: ScrollTrigger) {
       setTimelineVisible(window.scrollY >= start);
     }
-    gsap.to(section, {
-      "--track-index": lastFilm,
-      ease: "none",
-      scrollTrigger: {
-        trigger: scrollArea,
-        start: () => `top+=${section.clientHeight * timelineStart} top`,
-        end: () => `+=${section.clientHeight * filmViewports * lastFilm}`,
-        scrub: true,
-        onUpdate: syncTimeline,
-        onRefresh: syncTimeline,
-      },
-    });
 
     const motion = gsap.matchMedia();
     motion.add({
@@ -107,6 +114,36 @@ export function MovieEdit() {
       reduced: "(prefers-reduced-motion: reduce)",
     }, ({ conditions }) => {
       const reduced = conditions?.reduced;
+      const scrub = reduced ? true : 0.3;
+      gsap.to(section, {
+        "--track-index": lastFilm,
+        ease: "none",
+        onUpdate(this: gsap.core.Tween) {
+          setFilmIndex(Math.round(this.progress() * lastFilm));
+        },
+        scrollTrigger: {
+          trigger: scrollArea,
+          start: () => `top+=${section.clientHeight * timelineStart} top`,
+          end: () => `top+=${section.clientHeight * timelineEnd} top`,
+          scrub,
+          onUpdate: syncTimeline,
+          onRefresh: syncTimeline,
+        },
+      });
+      gsap.to(section, {
+        "--timeline-exit": 1.95,
+        "--timeline-tail": 1,
+        ease: reduced ? "steps(1)" : "none",
+        onUpdate(this: gsap.core.Tween) {
+          setTimelineLeaving(this.progress() >= 0.4);
+        },
+        scrollTrigger: {
+          trigger: scrollArea,
+          start: () => `top+=${section.clientHeight * timelineEnd} top`,
+          end: () => `+=${section.clientHeight * timelineExitViewports}`,
+          scrub,
+        },
+      });
       const animation = gsap.timeline({
         scrollTrigger: {
           trigger: scrollArea,
@@ -140,9 +177,10 @@ export function MovieEdit() {
           if (section.style.getPropertyValue("--poster-paper") === "1") paperSurface.current?.draw(pose);
         });
         animation
+          .fromTo(section, { "--timeline-entry": 1.65 }, { "--timeline-entry": 0, duration: 1, ease: "none" }, 0)
           .set(section, { "--wall-poster-visibility": "hidden", "--featured-poster-visibility": "visible", "--featured-poster-opacity": 1, "--poster-paper": 1 }, paperLiftOff)
           .to(section, { "--poster-travel": 1, duration: 0.98, ease: "sine.out" }, paperLiftOff)
-          .to(pose, { turn: 355, duration: 0.61, ease: "power2.inOut" }, 0.09)
+          .to(pose, { turn: 360, duration: 0.61, ease: "power2.inOut" }, 0.09)
           .to(section, { "--poster-lift": 10, "--poster-pitch": 14, "--poster-roll": -14, duration: 0.24, ease: "sine.out" }, paperLiftOff)
           .to(pose, { curl: 1, twist: 0.75, ripple: 0.7, duration: 0.24, ease: "sine.out" }, paperLiftOff)
           .to(section, { "--poster-lift": 4, "--poster-pitch": -13, "--poster-roll": 11, duration: 0.3, ease: "sine.inOut" }, 0.241)
@@ -151,7 +189,7 @@ export function MovieEdit() {
           .to(pose, { curl: -0.25, twist: 0.35, ripple: 0.4, duration: 0.22, ease: "sine.inOut" }, 0.541)
           .to(section, { "--poster-lift": 0, "--poster-pitch": 0, "--poster-roll": 0, duration: 0.229, ease: "sine.inOut" }, 0.761)
           .to(pose, { curl: 0, twist: 0, ripple: 0, duration: 0.229, ease: "sine.inOut" }, 0.761)
-          .to(section, { "--timeline-labels": 1, duration: 0.23, ease: "power1.out" }, 0.75)
+          .to(section, { "--timeline-labels": 1, duration: 0.34, ease: "power1.out" }, 0.58)
           .to(section, { "--poster-caption": 1, duration: 0.06, ease: "power1.out" }, 0.94)
           .set(section, { "--poster-paper": 0 }, 0.99);
         return () => {
@@ -260,7 +298,7 @@ export function MovieEdit() {
   }
 
   return (
-    <div ref={runway} style={{ minHeight: `${(1 + timelineStart + timelineHoldViewports + filmViewports * lastFilm) * 100}svh` }}>
+    <div ref={runway} style={{ minHeight: `${(1 + timelineEnd + timelineExitViewports) * 100}svh` }}>
       <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} data-timeline-active={timelineVisible} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
         <div ref={worldLayer} className="cinema-world" data-lights-on={lightsOn}>
           <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
@@ -360,7 +398,9 @@ export function MovieEdit() {
                 "--featured-width": `${wallPoster.right - wallPoster.left}px`,
               }),
             } as CSSProperties}
-            inert={index !== 0 && ((!timelineVisible && index > 1) || Math.abs(filmIndex - index) > 2)}
+            inert={timelineLeaving || (index !== 0 && ((!timelineVisible && index > 1) || Math.abs(filmIndex - index) > 2))}
+            onPointerMove={tiltTimelinePoster}
+            onPointerLeave={resetTimelinePoster}
           >
             <button
               type="button"
@@ -390,7 +430,7 @@ export function MovieEdit() {
           </figure>
         ))}
 
-        {phase === "cinema" && timelineVisible && (
+        {phase === "cinema" && timelineVisible && !timelineLeaving && (
           <nav aria-label="Best Picture years" className="cinema-years-nav absolute inset-x-page bottom-[8%] z-[4] flex justify-start gap-1.5 overflow-x-auto md:justify-center md:gap-3" data-lenis-prevent-horizontal>
             {bestPictureWinners.map((film, index) => (
               <button

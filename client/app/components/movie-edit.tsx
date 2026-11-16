@@ -33,7 +33,7 @@ gsap.registerPlugin(useGSAP, ScrollTrigger);
 type Playback = "paused" | "playing" | "unavailable";
 type TrailerSelection = { movie: Movie; origin: DOMRectReadOnly; fromTimeline: boolean };
 
-const control = "grid size-11 shrink-0 cursor-pointer place-items-center rounded-full border border-white/40 bg-black/65";
+const control = "grid size-11 shrink-0 cursor-pointer place-items-center text-paper/65 hover:text-paper focus-visible:text-paper";
 
 function tiltTimelinePoster(event: PointerEvent<HTMLElement>) {
   if (event.pointerType !== "mouse") return;
@@ -395,13 +395,14 @@ export function MovieEdit() {
               event.currentTarget.querySelector("summary")?.focus();
             }
           }}>
-            <summary aria-label="Navigation" className="grid size-11 cursor-pointer list-none place-content-center gap-1.5 rounded-full bg-black/60 [&::-webkit-details-marker]:hidden">
-              <span aria-hidden="true" className="h-px w-5 -skew-x-30 bg-current" />
-              <span aria-hidden="true" className="ml-1 h-px w-5 -skew-x-30 bg-current" />
+            <summary aria-label="Navigation" className={`${control} list-none [&::-webkit-details-marker]:hidden`}>
+              <span aria-hidden="true" className="grid gap-[3px]">
+                <span className="h-px w-3.5 -skew-x-30 bg-current" />
+                <span className="ml-[3px] h-px w-3.5 -skew-x-30 bg-current" />
+              </span>
             </summary>
             <nav aria-label="Landing page" className="absolute top-full right-0 mt-3 min-w-44 rounded-card bg-ink p-2 shadow-lg">
               <a className="block rounded px-4 py-3 hover:bg-quote" href="#opening">Opening edit</a>
-              <a className="block rounded px-4 py-3 hover:bg-quote" href="#api-status">API status</a>
             </nav>
           </details>
         </header>
@@ -504,7 +505,7 @@ export function MovieEdit() {
                   aria-pressed={lightsOn}
                   title="Cinema lights"
                   onClick={() => setLightsOn((on) => !on)}
-                  className={`${control} aria-pressed:border-gold aria-pressed:text-gold`}
+                  className={`${control} aria-pressed:text-gold`}
                 >
                   <span aria-hidden="true" className="cinema-control-icon cinema-lights-icon" />
                 </button>

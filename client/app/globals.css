@@ -549,6 +549,7 @@ html::-webkit-scrollbar {
   position: relative;
   width: 20px;
   height: 20px;
+  scale: 0.7;
   forced-color-adjust: none;
 }
 

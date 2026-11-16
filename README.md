@@ -28,14 +28,6 @@ Press Ctrl+C to stop the services. Run `make down` to remove the containers and 
 
 Install JDK 21 or newer, Maven 3.9 or newer, Node.js 24 or newer, and npm.
 
-From the repository root, copy the local configuration template.
-
-```sh
-cp client/.env.example client/.env
-```
-
-Set `BACKEND_URL=http://localhost:8080` in `client/.env`. Next.js reads this value on the server. Keep local credentials in ignored `.env` files and commit only variable names and placeholders in `.env.example`.
-
 Start the API in one terminal.
 
 ```sh
@@ -52,7 +44,7 @@ npm run prepare:media
 npm run dev
 ```
 
-Open `http://localhost:3000`. The home page reports whether it can reach the API at `GET /api/health`. If `BACKEND_URL` is missing or invalid, the page tells you how to configure it. Restart Next.js after changing `client/.env`.
+Open `http://localhost:3000` to view the landing page.
 
 ## Prepare the landing page media
 
@@ -80,4 +72,4 @@ From the repository root, run the API smoke test and check the frontend.
 (cd client && npm ci && npm run lint && npm run build)
 ```
 
-With both apps running, `curl -fsS http://localhost:8080/api/health` should return `{"status":"UP"}` and the home page should show “API is online.” To check the configuration diagnostic, clear `BACKEND_URL` in `client/.env`, restart Next.js, and reload the page.
+With the API running, `curl -fsS http://localhost:8080/api/health` should return `{"status":"UP"}`.

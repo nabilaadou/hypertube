@@ -1,32 +1,35 @@
-package com.hypertube;
+package com.hypertube.auth.repository;
 
 import java.util.Optional;
 import java.util.UUID;
 
+import com.hypertube.auth.model.OAuthIdentity;
+import com.hypertube.auth.model.UserProfile;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
-class AuthUsers {
+public class AuthRepository {
     private final JdbcClient jdbc;
 
-    AuthUsers(JdbcClient jdbc) {
+    AuthRepository(JdbcClient jdbc) {
         this.jdbc = jdbc;
     }
 
     @Transactional
-    public UUID startLogin(String proofHash, String provider, String userId, String name, String email) {
+    public UUID startLogin(OAuthIdentity identity) {
         jdbc.sql("DELETE FROM oauth_login_handoffs WHERE expires_at <= now()").update();
         UUID code = UUID.randomUUID();
         jdbc.sql("""
                 INSERT INTO oauth_login_handoffs (code, browser_proof_hash, provider, provider_user_id, display_name, email)
                 VALUES (?, ?, ?, ?, ?, ?)
-                """).params(code, proofHash, provider, userId, name, email).update();
+                """).params(code, identity.proofHash(), identity.provider(), identity.providerUserId(),
+                identity.displayName(), identity.email()).update();
         return code;
     }
 
-    Optional<Long> finishLogin(UUID code, String proofHash) {
+    public Optional<Long> finishLogin(UUID code, String proofHash) {
         return jdbc.sql("""
                 WITH identity AS (
                     DELETE FROM oauth_login_handoffs
@@ -42,12 +45,10 @@ class AuthUsers {
                 """).params(code, proofHash).query(Long.class).optional();
     }
 
-    Optional<Profile> find(long id) {
+    public Optional<UserProfile> findProfile(long id) {
         return jdbc.sql("SELECT id, provider, provider_user_id, display_name, email FROM users WHERE id = ?")
-                .param(id).query((row, index) -> new Profile(row.getLong("id"), row.getString("provider"),
+                .param(id).query((row, index) -> new UserProfile(row.getLong("id"), row.getString("provider"),
                         row.getString("provider_user_id"), row.getString("display_name"), row.getString("email")))
                 .optional();
     }
-
-    record Profile(long id, String provider, String providerUserId, String displayName, String email) {}
 }

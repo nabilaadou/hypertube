@@ -20,20 +20,18 @@ public class AuthRepository {
     @Transactional
     public UUID startLogin(OAuthIdentity identity) {
         jdbc.sql("DELETE FROM oauth_login_handoffs WHERE expires_at <= now()").update();
-        UUID code = UUID.randomUUID();
-        jdbc.sql("""
+        return jdbc.sql("""
                 INSERT INTO oauth_login_handoffs (code, browser_proof_hash, provider, provider_user_id, display_name, email)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """).params(code, identity.proofHash(), identity.provider(), identity.providerUserId(),
-                identity.displayName(), identity.email()).update();
-        return code;
+                VALUES (gen_random_uuid(), :proofHash, :provider, :providerUserId, :displayName, :email)
+                RETURNING code
+                """).paramSource(identity).query(UUID.class).single();
     }
 
     public Optional<Long> finishLogin(UUID code, String proofHash) {
         return jdbc.sql("""
                 WITH identity AS (
                     DELETE FROM oauth_login_handoffs
-                    WHERE code = ? AND browser_proof_hash = ? AND expires_at > now()
+                    WHERE code = :code AND browser_proof_hash = :proofHash AND expires_at > now()
                     RETURNING provider, provider_user_id, display_name, email
                 )
                 INSERT INTO users (provider, provider_user_id, display_name, email)
@@ -42,13 +40,11 @@ public class AuthRepository {
                 SET display_name = COALESCE(EXCLUDED.display_name, users.display_name),
                     email = COALESCE(EXCLUDED.email, users.email)
                 RETURNING id
-                """).params(code, proofHash).query(Long.class).optional();
+                """).param("code", code).param("proofHash", proofHash).query(Long.class).optional();
     }
 
     public Optional<UserProfile> findProfile(long id) {
-        return jdbc.sql("SELECT id, provider, provider_user_id, display_name, email FROM users WHERE id = ?")
-                .param(id).query((row, index) -> new UserProfile(row.getLong("id"), row.getString("provider"),
-                        row.getString("provider_user_id"), row.getString("display_name"), row.getString("email")))
-                .optional();
+        return jdbc.sql("SELECT id, provider, provider_user_id, display_name, email FROM users WHERE id = :id")
+                .param("id", id).query(UserProfile.class).optional();
     }
 }

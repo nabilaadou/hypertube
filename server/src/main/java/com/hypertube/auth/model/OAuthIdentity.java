@@ -1,3 +1,16 @@
 package com.hypertube.auth.model;
 
-public record OAuthIdentity(String provider, String providerUserId, String displayName, String email, String proofHash) {}
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import org.hibernate.validator.constraints.CodePointLength;
+
+public record OAuthIdentity(
+        @NotNull @Pattern(regexp = "42|google") String provider,
+        @NotBlank @CodePointLength(max = 128) @Pattern(regexp = NO_NUL) String providerUserId,
+        @CodePointLength(max = 128) @Pattern(regexp = NO_NUL) String displayName,
+        @CodePointLength(max = 254) @Pattern(regexp = NO_NUL) String email,
+        @NotNull @Pattern(regexp = "[0-9a-f]{64}") String proofHash) {
+
+    private static final String NO_NUL = "[^\\x00]*";
+}

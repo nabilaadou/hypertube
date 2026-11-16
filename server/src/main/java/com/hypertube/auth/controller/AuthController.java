@@ -8,9 +8,11 @@ import com.hypertube.auth.model.UserProfile;
 import com.hypertube.auth.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.Errors;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,12 +33,15 @@ class AuthController {
 
     @PostMapping("/internal/auth/identities")
     ResponseEntity<String> receiveIdentity(@RequestHeader(value = "Authorization", defaultValue = "") String authorization,
-                                           @RequestBody OAuthIdentity identity) {
+                                           @Valid @RequestBody OAuthIdentity identity, Errors errors) {
         if (!auth.isHandoffAuthorized(authorization)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
+        if (errors.hasErrors()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+        }
 
-        UUID code = auth.startLogin(identity).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST));
+        UUID code = auth.startLogin(identity);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(code.toString());
     }
 

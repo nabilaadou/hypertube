@@ -46,7 +46,7 @@ export const bestPictureWinners = [
     title: "No Country for Old Men",
     awardYear: 2008,
     award: "Best Picture",
-    poster: "https://image.tmdb.org/t/p/w500/zuArI6EBpV6mExrvfnyidoOtzdf.jpg",
+    poster: "https://image.tmdb.org/t/p/w500/6d5XOczc226jECq0LIX0siKtgHR.jpg",
     trailerId: "A0oNrgumrlE",
   },
   {

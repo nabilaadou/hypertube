@@ -8,20 +8,26 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import com.hypertube.auth.model.LoginHandoff;
 import com.hypertube.auth.model.OAuthIdentity;
 import com.hypertube.auth.model.UserProfile;
-import com.hypertube.auth.repository.AuthRepository;
+import com.hypertube.auth.repository.AuthUserRepository;
+import com.hypertube.auth.repository.LoginHandoffRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthService {
     private static final Pattern PROOF = Pattern.compile("[0-9a-f]{64}");
-    private final AuthRepository repository;
+    private final LoginHandoffRepository handoffs;
+    private final AuthUserRepository users;
     private final byte[] handoffAuthorization;
 
-    AuthService(AuthRepository repository, @Value("${hypertube.auth.handoff-secret}") String secret) {
-        this.repository = repository;
+    AuthService(LoginHandoffRepository handoffs, AuthUserRepository users,
+                @Value("${hypertube.auth.handoff-secret}") String secret) {
+        this.handoffs = handoffs;
+        this.users = users;
         this.handoffAuthorization = secret.length() >= 64 ? digest("Bearer " + secret) : null;
     }
 
@@ -29,19 +35,23 @@ public class AuthService {
         return handoffAuthorization != null && MessageDigest.isEqual(handoffAuthorization, digest(authorization));
     }
 
+    @Transactional
     public UUID startLogin(OAuthIdentity identity) {
-        return repository.startLogin(identity);
+        handoffs.deleteExpired();
+        return handoffs.save(new LoginHandoff(identity)).getCode();
     }
 
+    @Transactional
     public Optional<Long> finishLogin(UUID code, String proof) {
         if (!PROOF.matcher(proof).matches()) {
             return Optional.empty();
         }
-        return repository.finishLogin(code, HexFormat.of().formatHex(digest(proof)));
+        return handoffs.redeem(code, HexFormat.of().formatHex(digest(proof)));
     }
 
+    @Transactional(readOnly = true)
     public Optional<UserProfile> findProfile(long id) {
-        return repository.findProfile(id);
+        return users.findProfileById(id);
     }
 
     private static byte[] digest(String value) {

@@ -45,7 +45,7 @@ POSTGRES_PASSWORD=your-local-postgres-password mvn spring-boot:run
 
 Use a running PostgreSQL instance and set `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, or `POSTGRES_USER` if your connection differs from `localhost:5432`, database `hypertube`, user `hypertube`.
 
-Spring Boot runs [Flyway migrations](server/src/main/resources/db/migration) on startup. Flyway tracks which scripts have run in `flyway_schema_history`. For a new schema change, add a versioned SQL script such as `V2__add_user_preferences.sql`.
+Spring Boot runs [Flyway migrations](server/src/main/resources/db/migration) on startup. Flyway tracks which scripts have run in `flyway_schema_history`. For a new schema change, add a versioned SQL script such as `V2__add_user_preferences.sql`. Hibernate validates the entity mappings against the migrated schema.
 
 Start Next.js in a second terminal.
 

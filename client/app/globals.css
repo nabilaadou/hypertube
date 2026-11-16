@@ -258,6 +258,9 @@ html::-webkit-scrollbar {
   --card-scale: calc(1.07 - 0.13 * max(var(--card-angle), -1 * var(--card-angle)));
   --card-top-position: min(calc((var(--card-top, 15) + var(--timeline-card-drop)) * 1cqh), var(--card-bottom-limit));
   --card-hover: 0;
+  --card-finish: 1;
+  --card-light-x: var(--cursor-light, calc(48% - var(--card-angle) * 27%));
+  --card-light-y: calc(32% - var(--cursor-pitch, 0) * 3%);
   position: absolute;
   z-index: 3;
   display: grid;
@@ -289,28 +292,48 @@ html::-webkit-scrollbar {
 }
 
 .cinema-track-card > button {
-  border-color: #c79b5b;
-  border-radius: 2px;
+  border-radius: clamp(0.25rem, 0.48cqw, 0.45rem);
 }
 
-.cinema-stage[data-timeline-active="true"] .cinema-track-card > button:not(:focus-visible) {
-  outline: 2px solid #c79b5b;
+.cinema-card-artwork {
+  border-radius: inherit;
+  filter: brightness(calc(1 + var(--card-finish) * 0.17)) saturate(calc(1 + var(--card-finish) * 0.07));
+}
+
+.cinema-track-card > button::before,
+.cinema-track-card > button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.cinema-track-card > button::before {
+  z-index: 2;
+  padding: clamp(1px, 0.19cqw, 3px);
+  opacity: var(--card-finish);
+  background:
+    linear-gradient(117deg, #936535 8%, #dfbd7f 28%, #a07543 44%, #f6dba4 56%, #9c713d 72%, #d6ac6c 88%)
+    var(--card-light-x) 50% / 160% 100%;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+.cinema-track-card > button::after {
+  z-index: 1;
+  opacity: calc(var(--card-finish) * (0.72 + var(--card-hover) * 0.28));
+  background:
+    radial-gradient(ellipse at var(--card-light-x) var(--card-light-y), #fff0d65c, #ffcd9324 33%, transparent 69%),
+    linear-gradient(117deg, transparent 34%, #ffebc51a 44%, #fff8e538 49%, #fff9ee12 57%, transparent 64%)
+    var(--card-light-x) 50% / 210% 100%;
+  mix-blend-mode: screen;
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .cinema-stage[data-timeline-active="true"] .cinema-track-card:hover {
     z-index: 4;
     --card-hover: 1;
-  }
-
-  .cinema-stage[data-timeline-active="true"] .cinema-track-card > button::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    opacity: calc(var(--card-hover) * 0.28);
-    background: linear-gradient(110deg, transparent 36%, #fff9 49%, transparent 61%) var(--cursor-light, 50%) 0 / 260% 100%;
-    mix-blend-mode: screen;
   }
 }
 
@@ -334,6 +357,7 @@ html::-webkit-scrollbar {
 }
 
 .cinema-track-card.cinema-featured-poster {
+  --card-finish: calc(var(--poster-caption) * (1 - var(--poster-paper)));
   --featured-left: var(--spacing-page);
   --featured-bottom: calc(16cqh + 2rem);
   --featured-width: clamp(5rem, 13cqw, 11rem);
@@ -368,12 +392,7 @@ html::-webkit-scrollbar {
 }
 
 .cinema-featured-poster > button:has(.cinema-paper-sheet[data-ready="true"]) {
-  border-color: color-mix(in srgb, #c79b5b calc((1 - var(--poster-paper)) * 100%), transparent);
   background-color: color-mix(in srgb, var(--color-ink) calc((1 - var(--poster-paper)) * 100%), transparent);
-}
-
-.cinema-featured-poster .cinema-card-artwork {
-  border-radius: inherit;
 }
 
 .cinema-featured-poster :is(.cinema-card-artwork, .cinema-card-fallback) {
@@ -436,6 +455,11 @@ html::-webkit-scrollbar {
 @media (prefers-reduced-motion: reduce) {
   .cinema-year-track > button {
     transition: none;
+  }
+
+  .cinema-track-card {
+    --card-light-x: 48%;
+    --card-light-y: 32%;
   }
 
   .cinema-track-card,

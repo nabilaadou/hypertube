@@ -435,7 +435,7 @@ export function MovieEdit() {
               tabIndex={index === filmIndex ? 0 : -1}
               aria-label={`Watch the ${movie.title} trailer`}
               onClick={(event) => openTrailer(movie, event.currentTarget)}
-              className="group relative isolate aspect-[2/3] w-full cursor-pointer overflow-hidden rounded-card border border-gold bg-ink"
+              className="group relative isolate aspect-[2/3] w-full cursor-pointer overflow-hidden bg-ink"
             >
               <span aria-hidden="true" className="cinema-card-fallback absolute inset-0 grid place-items-center p-2 text-center font-display text-2xl">{movie.title}</span>
               <Image
@@ -449,7 +449,7 @@ export function MovieEdit() {
                 className="cinema-card-artwork relative aspect-[2/3] h-auto w-full object-cover"
               />
               {index === 0 && <canvas ref={paperCanvas} inert className="cinema-paper-sheet" />}
-              <span aria-hidden="true" className="absolute right-2 bottom-2 rounded-full bg-black/80 px-3 py-1 font-mono text-xs opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Play trailer</span>
+              <span aria-hidden="true" className="absolute right-2 bottom-2 z-[3] rounded-full bg-black/80 px-3 py-1 font-mono text-xs opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Play trailer</span>
             </button>
             <figcaption className="cinema-card-caption">{movie.title}</figcaption>
           </figure>

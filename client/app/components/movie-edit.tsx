@@ -8,6 +8,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { bestPictureWinners, cinemaMedia, type Movie } from "../data/movies";
+import type { createCinemaPaperSurface, PaperPose } from "./cinema-paper-surface";
 import { projectVideo, type ScreenCorners } from "./cinema-projection";
 import { TrailerDialog } from "./trailer-dialog";
 import { useCinemaReveal } from "./use-cinema-reveal";
@@ -15,12 +16,12 @@ import { useCinemaReveal } from "./use-cinema-reveal";
 const CinemaScene = dynamic(() => import("./cinema-scene"), { ssr: false });
 
 const featured = bestPictureWinners[0];
-const cinemaHoldViewports = 1;
-const handoffViewports = 1.35;
+const handoffViewports = 1.8;
 const timelineHoldViewports = 0.5;
 const filmViewports = 0.7;
 const lastFilm = bestPictureWinners.length - 1;
-const timelineStart = cinemaHoldViewports + handoffViewports;
+const timelineStart = handoffViewports;
+const paperLiftOff = 0.001;
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -32,6 +33,9 @@ export function MovieEdit() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoLayer = useRef<HTMLDivElement>(null);
   const worldLayer = useRef<HTMLDivElement>(null);
+  const paperCanvas = useRef<HTMLCanvasElement>(null);
+  const paperSurface = useRef<ReturnType<typeof createCinemaPaperSurface>>(null);
+  const paperPose = useRef<PaperPose>({ curl: 0, twist: 0, ripple: 0, turn: 0 });
   const corners = useRef<ScreenCorners | null>(null);
   const revealProgress = useRef(0);
 
@@ -54,6 +58,7 @@ export function MovieEdit() {
   const runway = useRef<HTMLDivElement>(null);
   const lenis = useLenis();
   const [wallPosterCorners, setWallPosterCorners] = useState<ScreenCorners | null>(null);
+  const [wallArtworkVisible, setWallArtworkVisible] = useState(true);
   const [filmIndex, setFilmIndex] = useState(0);
   const [timelineVisible, setTimelineVisible] = useState(false);
   const [trailer, setTrailer] = useState<Movie | null>(null);
@@ -104,7 +109,7 @@ export function MovieEdit() {
       const animation = gsap.timeline({
         scrollTrigger: {
           trigger: scrollArea,
-          start: () => `top+=${section.clientHeight * cinemaHoldViewports} top`,
+          start: "top top",
           end: () => `+=${section.clientHeight * handoffViewports}`,
           scrub: true,
         },
@@ -121,16 +126,38 @@ export function MovieEdit() {
           "--featured-poster-visibility": "visible",
         }, 1);
       } else {
+        const pose = paperPose.current;
+        let onWall = true;
+        animation.eventCallback("onUpdate", () => {
+          const nextOnWall = animation.time() < paperLiftOff;
+          if (nextOnWall !== onWall) {
+            onWall = nextOnWall;
+            setWallArtworkVisible(onWall);
+          }
+          section.style.setProperty("--poster-turn", String(pose.turn));
+          section.style.setProperty("--poster-face", pose.turn > 90 && pose.turn < 270 ? "-1" : "1");
+          if (section.style.getPropertyValue("--poster-paper") === "1") paperSurface.current?.draw(pose);
+        });
         animation
-          .set(section, { "--wall-poster-visibility": "hidden", "--featured-poster-visibility": "visible", "--poster-paper": 1 }, 0.5)
-          .to(section, { "--featured-poster-opacity": 1, duration: 0.08, ease: "none" }, 0.5)
-          .to(section, { "--poster-travel": 1, duration: 0.44, ease: "power1.inOut" }, 0.55)
-          .to(section, { "--poster-lift": 7, "--poster-turn": 10, "--poster-pitch": 8, "--poster-roll": -7, "--poster-bend": 34, duration: 0.12, ease: "sine.out" }, 0.55)
-          .to(section, { "--poster-lift": 6, "--poster-turn": -8, "--poster-pitch": -5, "--poster-roll": 4, "--poster-bend": -29, duration: 0.17, ease: "sine.inOut" }, 0.67)
-          .to(section, { "--poster-lift": 0, "--poster-turn": -5, "--poster-pitch": 0, "--poster-roll": 0, "--poster-bend": 0, duration: 0.15, ease: "sine.inOut" }, 0.84)
+          .set(section, { "--wall-poster-visibility": "hidden", "--featured-poster-visibility": "visible", "--featured-poster-opacity": 1, "--poster-paper": 1 }, paperLiftOff)
+          .to(section, { "--poster-travel": 1, duration: 0.98, ease: "sine.out" }, paperLiftOff)
+          .to(pose, { turn: 355, duration: 0.61, ease: "power2.inOut" }, 0.09)
+          .to(section, { "--poster-lift": 10, "--poster-pitch": 14, "--poster-roll": -14, duration: 0.24, ease: "sine.out" }, paperLiftOff)
+          .to(pose, { curl: 1, twist: 0.75, ripple: 0.7, duration: 0.24, ease: "sine.out" }, paperLiftOff)
+          .to(section, { "--poster-lift": 4, "--poster-pitch": -13, "--poster-roll": 11, duration: 0.3, ease: "sine.inOut" }, 0.241)
+          .to(pose, { curl: -0.92, twist: -0.85, ripple: -0.85, duration: 0.3, ease: "sine.inOut" }, 0.241)
+          .to(section, { "--poster-lift": 5.5, "--poster-pitch": 6, "--poster-roll": -8, duration: 0.22, ease: "sine.inOut" }, 0.541)
+          .to(pose, { curl: -0.25, twist: 0.35, ripple: 0.4, duration: 0.22, ease: "sine.inOut" }, 0.541)
+          .to(section, { "--poster-lift": 0, "--poster-pitch": 0, "--poster-roll": 0, duration: 0.229, ease: "sine.inOut" }, 0.761)
+          .to(pose, { curl: 0, twist: 0, ripple: 0, duration: 0.229, ease: "sine.inOut" }, 0.761)
           .to(section, { "--timeline-labels": 1, duration: 0.23, ease: "power1.out" }, 0.75)
           .to(section, { "--poster-caption": 1, duration: 0.06, ease: "power1.out" }, 0.94)
           .set(section, { "--poster-paper": 0 }, 0.99);
+        return () => {
+          section.style.removeProperty("--poster-turn");
+          section.style.removeProperty("--poster-face");
+          setWallArtworkVisible(true);
+        };
       }
     });
     return () => {
@@ -138,6 +165,45 @@ export function MovieEdit() {
       motion.revert();
     };
   }, { scope: runway });
+
+  useEffect(() => {
+    const canvas = paperCanvas.current;
+    if (phase !== "cinema" || !canvas) return;
+
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (motion.matches) return;
+    let active = true;
+    let textureReady = false;
+
+    function showSurface() {
+      if (!active || !textureReady || !canvas) return;
+      paperSurface.current?.draw(paperPose.current);
+      canvas.dataset.ready = "true";
+    }
+    function hideSurface(event: Event) {
+      event.preventDefault();
+      if (canvas) delete canvas.dataset.ready;
+    }
+
+    void import("./cinema-paper-surface").then(({ createCinemaPaperSurface }) => {
+      if (!active) return;
+      paperSurface.current = createCinemaPaperSurface(canvas, featured.poster, () => {
+        textureReady = true;
+        showSurface();
+      });
+      canvas.addEventListener("webglcontextlost", hideSurface);
+      canvas.addEventListener("webglcontextrestored", showSurface);
+    }).catch(() => {});
+
+    return () => {
+      active = false;
+      delete canvas.dataset.ready;
+      canvas.removeEventListener("webglcontextlost", hideSurface);
+      canvas.removeEventListener("webglcontextrestored", showSurface);
+      paperSurface.current?.dispose();
+      paperSurface.current = null;
+    };
+  }, [phase]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -193,7 +259,7 @@ export function MovieEdit() {
   }
 
   return (
-    <div ref={runway} style={{ minHeight: `${(1 + cinemaHoldViewports + handoffViewports + timelineHoldViewports + filmViewports * lastFilm) * 100}svh` }}>
+    <div ref={runway} style={{ minHeight: `${(1 + timelineStart + timelineHoldViewports + filmViewports * lastFilm) * 100}svh` }}>
       <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
         <div ref={worldLayer} className="cinema-world" data-lights-on={lightsOn}>
           <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
@@ -201,6 +267,7 @@ export function MovieEdit() {
             videoRef={videoRef}
             active={phase !== "fullscreen" && playback !== "unavailable"}
             lightsOn={lightsOn}
+            wallArtworkVisible={wallArtworkVisible}
             onProjection={handleProjection}
             onWallPosterProjection={setWallPosterCorners}
           />
@@ -299,7 +366,7 @@ export function MovieEdit() {
               onClick={(event) => openTrailer(movie, event.currentTarget)}
               className="group relative isolate aspect-[2/3] w-full cursor-pointer overflow-hidden rounded-card border border-gold bg-ink"
             >
-              <span aria-hidden="true" className="absolute inset-0 grid place-items-center p-2 text-center font-display text-2xl">{movie.title}</span>
+              <span aria-hidden="true" className="cinema-card-fallback absolute inset-0 grid place-items-center p-2 text-center font-display text-2xl">{movie.title}</span>
               <Image
                 src={movie.poster}
                 alt=""
@@ -310,13 +377,7 @@ export function MovieEdit() {
                 onError={(event) => { event.currentTarget.hidden = true; }}
                 className="cinema-card-artwork relative aspect-[2/3] h-auto w-full object-cover"
               />
-              {index === 0 && (
-                <span aria-hidden="true" className="cinema-paper-sheet" style={{ "--paper-artwork": `url("${movie.poster}")` } as CSSProperties}>
-                  <span className="cinema-paper-left" />
-                  <span className="cinema-paper-center" />
-                  <span className="cinema-paper-right" />
-                </span>
-              )}
+              {index === 0 && <canvas ref={paperCanvas} inert className="cinema-paper-sheet" />}
               <span aria-hidden="true" className="absolute right-2 bottom-2 rounded-full bg-black/80 px-3 py-1 font-mono text-xs opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Play trailer</span>
             </button>
             <figcaption className="grid gap-1 text-center font-mono text-[clamp(0.625rem,1.1vw,0.875rem)] text-paper">

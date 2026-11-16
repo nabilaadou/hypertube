@@ -110,7 +110,6 @@
   --poster-lift: 0;
   --poster-pitch: 0;
   --poster-roll: 0;
-  --poster-bend: 0;
   --poster-paper: 0;
   --poster-caption: 0;
   --track-index: 0;
@@ -192,23 +191,38 @@
   --featured-left: var(--spacing-page);
   --featured-bottom: calc(16cqh + 2rem);
   --featured-width: clamp(5rem, 13cqw, 11rem);
+  --poster-card-yaw: var(--poster-turn);
   left: calc(var(--featured-left) + var(--poster-travel) * (52cqw - var(--featured-left)));
   bottom: calc(var(--featured-bottom) + var(--poster-travel) * (38cqh + 2rem - var(--featured-bottom)) + var(--poster-lift) * 1cqh);
   width: calc(var(--featured-width) + var(--poster-travel) * (var(--timeline-width) - var(--featured-width)));
   opacity: var(--featured-poster-opacity);
   visibility: var(--featured-poster-visibility);
   translate: calc(-1 * var(--track-index) * var(--card-step));
-  transform: perspective(850px) rotateX(calc(var(--poster-pitch) * 1deg)) rotateY(calc(var(--poster-turn) * 1deg)) rotateZ(calc(var(--poster-roll) * 1deg));
+  transform: perspective(850px) rotateX(calc(var(--poster-pitch) * 1deg)) rotateY(calc(var(--poster-card-yaw) * 1deg)) rotateZ(calc(var(--poster-roll) * 1deg));
+}
+
+.cinema-featured-poster:has(.cinema-paper-sheet[data-ready="true"]) {
+  --poster-card-yaw: calc(var(--poster-turn) * (1 - var(--poster-paper)));
 }
 
 .cinema-featured-poster > button {
   overflow: visible;
+}
+
+.cinema-featured-poster > button:has(.cinema-paper-sheet[data-ready="true"]) {
   border-color: color-mix(in srgb, var(--color-gold) calc((1 - var(--poster-paper)) * 100%), transparent);
   background-color: color-mix(in srgb, var(--color-ink) calc((1 - var(--poster-paper)) * 100%), transparent);
 }
 
 .cinema-featured-poster .cinema-card-artwork {
   border-radius: inherit;
+}
+
+.cinema-featured-poster :is(.cinema-card-artwork, .cinema-card-fallback) {
+  scale: var(--poster-face, 1) 1;
+}
+
+.cinema-featured-poster > button:has(.cinema-paper-sheet[data-ready="true"]) :is(.cinema-card-artwork, .cinema-card-fallback) {
   opacity: calc(1 - var(--poster-paper));
 }
 
@@ -220,44 +234,15 @@
 
 .cinema-paper-sheet {
   position: absolute;
-  inset: 0;
+  inset: -15%;
+  width: 130%;
+  height: 130%;
   pointer-events: none;
+  opacity: 0;
+}
+
+.cinema-paper-sheet[data-ready="true"] {
   opacity: var(--poster-paper);
-  perspective: 580px;
-  transform-style: preserve-3d;
-}
-
-.cinema-paper-sheet > span {
-  position: absolute;
-  inset-block: 0;
-  background-image: var(--paper-artwork);
-  background-repeat: no-repeat;
-  background-size: calc(100% / var(--paper-width)) 100%;
-  width: calc(var(--paper-width) * 100%);
-}
-
-.cinema-paper-left {
-  --paper-width: 0.24;
-  left: 0;
-  background-position: left center;
-  transform-origin: right center;
-  transform: rotateY(calc(max(0, var(--poster-bend)) * 1deg));
-  filter: brightness(calc(1 - max(0, var(--poster-bend)) * 0.006));
-}
-
-.cinema-paper-center {
-  --paper-width: 0.52;
-  left: 24%;
-  background-position: center;
-}
-
-.cinema-paper-right {
-  --paper-width: 0.24;
-  right: 0;
-  background-position: right center;
-  transform-origin: left center;
-  transform: rotateY(calc(min(0, var(--poster-bend)) * 1deg));
-  filter: brightness(calc(1 + min(0, var(--poster-bend)) * 0.006));
 }
 
 @media (prefers-reduced-motion: reduce) {

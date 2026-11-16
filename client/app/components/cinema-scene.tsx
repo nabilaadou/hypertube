@@ -46,24 +46,28 @@ export default function CinemaScene({
   videoRef,
   active,
   lightsOn,
+  wallArtworkVisible,
   onProjection,
   onWallPosterProjection,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   active: boolean;
   lightsOn: boolean;
+  wallArtworkVisible: boolean;
   onProjection: (corners: ScreenCorners | null) => void;
   onWallPosterProjection: (corners: ScreenCorners | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawRef = useRef<(() => void) | null>(null);
   const lightsOnRef = useRef(lightsOn);
+  const wallArtworkVisibleRef = useRef(wallArtworkVisible);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     lightsOnRef.current = lightsOn;
+    wallArtworkVisibleRef.current = wallArtworkVisible;
     drawRef.current?.();
-  }, [lightsOn]);
+  }, [lightsOn, wallArtworkVisible]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -155,6 +159,7 @@ export default function CinemaScene({
         ceilingLight.intensity = lightsOnRef.current ? 0.95 : 0;
         ceilingMaterial.emissiveIntensity = lightsOnRef.current ? 3 : 0;
       }
+      if (wallPoster) wallPoster.artwork.visible = wallArtworkVisibleRef.current;
       renderer.render(scene, camera);
       if (firstFrame) {
         firstFrame = false;

@@ -32,6 +32,8 @@ export function createCinemaWallPoster(poster: Texture) {
 
   const artwork = new Mesh(new PlaneGeometry(width, height), new MeshStandardMaterial({ map: poster, roughness: 0.85 }));
   artwork.position.z = 0.011;
+  const backing = new Mesh(new PlaneGeometry(width, height), darkMetal);
+  backing.position.z = 0.0105;
 
   const lamp = new Group();
   lamp.position.y = 0.175;
@@ -47,7 +49,7 @@ export function createCinemaWallPoster(poster: Texture) {
   const light = new SpotLight(0xffddba, 0.23, 0.43, 0.54, 0.72);
   light.position.set(0, lamp.position.y - 0.01, shade.position.z);
   light.target.position.set(0, -0.024, artwork.position.z);
-  group.add(frame, frameLip, artwork, lamp, light, light.target);
+  group.add(frame, frameLip, backing, artwork, lamp, light, light.target);
 
   function setMount(mount: "side-wall" | "front-panel") {
     const scale = mount === "side-wall" ? 1 : 1.3;

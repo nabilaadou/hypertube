@@ -315,7 +315,7 @@ export function MovieEdit() {
 
   return (
     <div ref={runway} style={{ minHeight: `${(1 + timelineEnd + timelineExitViewports) * 100}svh` }}>
-      <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} data-timeline-active={timelineVisible} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
+      <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} data-timeline-active={timelineVisible} className="cinema-stage sticky top-0 isolate h-svh overflow-clip bg-theater text-paper">
         <div ref={worldLayer} className="cinema-world" data-lights-on={lightsOn}>
           <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
           <CinemaScene
@@ -378,16 +378,22 @@ export function MovieEdit() {
           <h2 id="timeline-title" className="cinema-timeline-heading cinema-timeline-label">
             {featured.award}
           </h2>
-          <div aria-hidden="true" className="cinema-year-track cinema-timeline-label">
+          <nav aria-label="Best Picture years" className="cinema-year-track cinema-timeline-label" inert={!timelineVisible || timelineLeaving}>
             {bestPictureWinners.map((film, index) => (
-              <span
+              <button
                 key={film.awardYear}
-                data-current={filmIndex === index}
+                type="button"
+                aria-current={filmIndex === index ? "true" : undefined}
+                aria-label={`${film.awardYear}, ${film.title}`}
                 data-trailer-side={trailerSide(film.awardYear)}
+                tabIndex={Math.abs(filmIndex - index) <= 1 ? 0 : -1}
+                onClick={() => goToFilm(index)}
                 style={{ "--index": index } as CSSProperties}
-              >{film.awardYear}</span>
+              >
+                <span>{film.awardYear}</span>
+              </button>
             ))}
-          </div>
+          </nav>
           <p aria-hidden="true" className="cinema-timeline-exit-copy hypertube-statement-title">Every film opens<br />another world.</p>
         </section>
 
@@ -445,29 +451,9 @@ export function MovieEdit() {
               {index === 0 && <canvas ref={paperCanvas} inert className="cinema-paper-sheet" />}
               <span aria-hidden="true" className="absolute right-2 bottom-2 rounded-full bg-black/80 px-3 py-1 font-mono text-xs opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Play trailer</span>
             </button>
-            <figcaption className="cinema-card-caption">
-              {movie.title}
-              <span className="cinema-timeline-label text-muted">{movie.awardYear}</span>
-            </figcaption>
+            <figcaption className="cinema-card-caption">{movie.title}</figcaption>
           </figure>
         ))}
-
-        {phase === "cinema" && timelineVisible && !timelineLeaving && (
-          <nav aria-label="Best Picture years" className="cinema-years-nav absolute inset-x-page bottom-[8%] z-[4] flex justify-start gap-1.5 overflow-x-auto md:justify-center md:gap-3" data-lenis-prevent-horizontal>
-            {bestPictureWinners.map((film, index) => (
-              <button
-                key={film.awardYear}
-                type="button"
-                aria-current={filmIndex === index ? "true" : undefined}
-                aria-label={`${film.awardYear}, ${film.title}`}
-                onClick={() => goToFilm(index)}
-                className="min-h-11 shrink-0 cursor-pointer border-t border-paper/30 bg-ink px-2 font-mono text-xs text-paper/70 hover:text-paper aria-[current=true]:border-gold aria-[current=true]:text-paper"
-              >
-                {film.awardYear}
-              </button>
-            ))}
-          </nav>
-        )}
 
         {trailer && <TrailerDialog movie={trailer.movie} origin={trailer.origin} onClose={closeTrailer} />}
 

@@ -39,13 +39,11 @@
   }
 }
 
-html,
-.cinema-years-nav {
+html {
   scrollbar-width: none;
 }
 
-html::-webkit-scrollbar,
-.cinema-years-nav::-webkit-scrollbar {
+html::-webkit-scrollbar {
   display: none;
 }
 
@@ -138,6 +136,10 @@ html::-webkit-scrollbar,
   --card-step: 32cqw;
   --timeline-width: clamp(6.5rem, 16cqw, min(17rem, 29cqh));
   --timeline-card-drop: 0;
+  --year-track-height: clamp(2.75rem, 9cqh, 4.75rem);
+  --year-track-bottom: 4.75rem;
+  --year-track-top: calc(100cqh - var(--year-track-bottom) - var(--year-track-height));
+  --card-bottom-limit: calc(var(--year-track-top) - var(--timeline-width) * 1.58 - 3rem);
   --track-left: calc(50cqw - var(--timeline-width) / 2);
 }
 
@@ -145,10 +147,10 @@ html::-webkit-scrollbar,
   visibility: hidden;
   z-index: 2;
   background:
-    radial-gradient(circle at 2px 3px, #e3d1ef19 0.35px, transparent 0.9px) 0 0 / 7px 9px,
-    radial-gradient(circle at 4px 2px, #0008 0.6px, transparent 1.2px) 3px 1px / 11px 13px,
-    radial-gradient(circle at 2px 6px, #b4a1bb13 0.4px, transparent 1px) 0 2px / 13px 11px,
-    radial-gradient(ellipse at 48% 43%, #1a1320, #100d15 76%, #0d0b10);
+    radial-gradient(circle at 2px 3px, #e3d1ef12 0.35px, transparent 0.9px) 0 0 / 7px 9px,
+    radial-gradient(circle at 4px 2px, #0004 0.6px, transparent 1.2px) 3px 1px / 11px 13px,
+    radial-gradient(circle at 2px 6px, #b4a1bb0d 0.4px, transparent 1px) 0 2px / 13px 11px,
+    radial-gradient(ellipse at 19% 30%, #231a2d, #100d15 62%, #0a080e);
   clip-path: polygon(
     0 calc(100% - var(--wipe) * 120%),
     100% calc(100% - var(--wipe) * 180%),
@@ -181,7 +183,7 @@ html::-webkit-scrollbar,
 .cinema-timeline-grid {
   pointer-events: none;
   opacity: var(--timeline-content-opacity);
-  background: linear-gradient(to right, #e9d9ef27 1px, transparent 1px) var(--grid-offset) 0 / 19.2cqw 100%;
+  background: linear-gradient(to right, #e9d9ef18 1px, transparent 1px) var(--grid-offset) 0 / 19.2cqw 100%;
 }
 
 .cinema-timeline-grid::after {
@@ -215,26 +217,36 @@ html::-webkit-scrollbar,
 
 .cinema-year-track {
   position: absolute;
-  inset: 80% 0 auto;
+  inset: var(--year-track-top) 0 auto;
+  height: var(--year-track-height);
   pointer-events: none;
-  color: #b0a0c340;
-  font: 800 clamp(3rem, min(8.7cqw, 15cqh), 9rem) / 0.8 var(--font-barlow), Impact, sans-serif;
-  letter-spacing: -0.03em;
-  white-space: nowrap;
 }
 
-.cinema-year-track span {
+.cinema-year-track > button {
   position: absolute;
   left: 50%;
-  translate: calc(var(--card-offset) + var(--trailer-offset));
-  transform: translateX(-50%) scaleX(0.6);
+  height: 100%;
+  min-width: 2.75rem;
+  padding-inline: 0.25rem;
+  color: #9686a4;
+  font: 700 clamp(1.65rem, min(7.5cqw, 8.8cqh), 5rem) / 1 var(--font-barlow), Impact, sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  translate: calc(-50% + var(--card-offset) + var(--trailer-offset));
 }
 
-.cinema-year-track span[data-current="true"] {
-  color: #c3afda70;
+.cinema-year-track > button > span {
+  display: block;
+  transform: scaleX(0.73);
 }
 
-:is(.cinema-track-card, .cinema-year-track span) {
+.cinema-year-track > button:is([aria-current="true"], :hover, :focus-visible) {
+  color: #decee9;
+}
+
+:is(.cinema-track-card, .cinema-year-track > button) {
   --card-distance: calc(var(--index) + var(--track-offset));
   --card-offset: calc(var(--card-distance) * var(--card-step));
   transition: --trailer-offset 0.65s cubic-bezier(0.65, 0, 0.35, 1);
@@ -243,7 +255,7 @@ html::-webkit-scrollbar,
 .cinema-track-card {
   --card-angle: clamp(-1, var(--card-distance) * 0.64, 1);
   --card-scale: calc(1.07 - 0.13 * max(var(--card-angle), -1 * var(--card-angle)));
-  --card-top-position: calc((var(--card-top, 15) + var(--timeline-card-drop)) * 1cqh);
+  --card-top-position: min(calc((var(--card-top, 15) + var(--timeline-card-drop)) * 1cqh), var(--card-bottom-limit));
   --card-hover: 0;
   position: absolute;
   z-index: 3;
@@ -263,15 +275,15 @@ html::-webkit-scrollbar,
   filter: drop-shadow(0 12px 18px #0008);
 }
 
-:is(.cinema-track-card, .cinema-year-track span)[data-trailer-side="before"] {
+:is(.cinema-track-card, .cinema-year-track > button)[data-trailer-side="before"] {
   --trailer-offset: -15cqw;
 }
 
-:is(.cinema-track-card, .cinema-year-track span)[data-trailer-side="after"] {
+:is(.cinema-track-card, .cinema-year-track > button)[data-trailer-side="after"] {
   --trailer-offset: 15cqw;
 }
 
-:is(.cinema-track-card, .cinema-year-track span)[data-trailer-side="selected"] {
+.cinema-track-card[data-trailer-side="selected"] {
   visibility: hidden;
 }
 
@@ -303,19 +315,17 @@ html::-webkit-scrollbar,
 
 .cinema-card-caption {
   position: absolute;
-  inset: calc(100% + 0.55rem) 0 auto;
-  display: grid;
-  gap: 0.2rem;
+  top: calc(100% + 0.65rem);
+  left: 50%;
+  width: max-content;
+  max-width: min(var(--timeline-width) * 1.18, var(--card-step));
   text-align: center;
+  text-wrap: balance;
   text-transform: uppercase;
   color: #e8d7cd;
   font: 400 clamp(0.6rem, 0.78cqw, 0.76rem) / 1.35 var(--font-ibm-plex), monospace;
   letter-spacing: 0.14em;
-}
-
-.cinema-card-caption > span {
-  color: #c1acaa;
-  letter-spacing: 0.22em;
+  transform: translateX(-50%);
 }
 
 .cinema-wall-poster-trigger {
@@ -392,17 +402,11 @@ html::-webkit-scrollbar,
   transform: translate(-50%, -50%) scale(calc(1 + (1 - var(--timeline-tail)) * 5));
 }
 
-@media (width >= 48rem) {
-  .cinema-years-nav:not(:focus-within) {
-    opacity: 0;
-    pointer-events: none;
-  }
-}
-
 @media (width < 48rem) {
   .cinema-stage {
     --timeline-width: clamp(5.25rem, 28cqw, min(11rem, 27cqh));
     --timeline-card-drop: 10;
+    --year-track-bottom: 4.25rem;
   }
 
 }
@@ -427,7 +431,7 @@ html::-webkit-scrollbar,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cinema-year-track span {
+  .cinema-year-track > button {
     transition: none;
   }
 

@@ -22,6 +22,7 @@ const filmViewports = 0.7;
 const lastFilm = bestPictureWinners.length - 1;
 const timelineStart = handoffViewports;
 const paperLiftOff = 0.001;
+const timelineCardHeights = [15, 37, 9, 32, 20];
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -260,7 +261,7 @@ export function MovieEdit() {
 
   return (
     <div ref={runway} style={{ minHeight: `${(1 + timelineStart + timelineHoldViewports + filmViewports * lastFilm) * 100}svh` }}>
-      <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
+      <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} data-timeline-active={timelineVisible} className="cinema-stage sticky top-0 isolate h-svh overflow-hidden bg-theater text-paper">
         <div ref={worldLayer} className="cinema-world" data-lights-on={lightsOn}>
           <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
           <CinemaScene
@@ -300,7 +301,7 @@ export function MovieEdit() {
           <svg aria-hidden="true" viewBox="0 0 40 40" fill="none" className="size-8">
             <path d="M6 6v28m28-28v28M6 12l14 9 14-9M6 22l14 9 14-9" stroke="currentColor" strokeWidth="3.5" strokeLinecap="square" />
           </svg>
-          <h1 id="opening-title" className="font-display text-3xl leading-none font-black tracking-wide uppercase md:text-4xl">Hypertube</h1>
+          <h1 id="opening-title" className="cinema-stage-brand font-display text-3xl leading-none font-black tracking-wide uppercase md:text-4xl">Hypertube</h1>
           <details className="relative justify-self-end" onKeyDown={(event) => {
             if (event.key === "Escape" && event.currentTarget.open) {
               event.currentTarget.open = false;
@@ -320,7 +321,7 @@ export function MovieEdit() {
 
         <section aria-labelledby="timeline-title" className="cinema-timeline absolute inset-0">
           <div className="cinema-timeline-grid absolute inset-0" aria-hidden="true" />
-          <h2 id="timeline-title" className="cinema-timeline-label absolute top-[10%] left-page font-display text-[clamp(3.5rem,14vw,15rem)] leading-none font-black whitespace-nowrap uppercase text-timeline">
+          <h2 id="timeline-title" className="cinema-timeline-heading cinema-timeline-label">
             {featured.award}
           </h2>
           <div aria-hidden="true" className="cinema-year-track cinema-timeline-label">
@@ -328,6 +329,7 @@ export function MovieEdit() {
               <span key={film.awardYear} style={{ "--index": index } as CSSProperties}>{film.awardYear}</span>
             ))}
           </div>
+          <p aria-hidden="true" className="cinema-timeline-exit-copy hypertube-statement-title">Every film opens<br />another world.</p>
         </section>
 
         {phase === "cinema" && wallPoster && playback !== "unavailable" && (
@@ -351,6 +353,7 @@ export function MovieEdit() {
             className={`cinema-track-card ${index === 0 ? "cinema-featured-poster" : ""}`}
             style={{
               "--index": index,
+              "--card-top": timelineCardHeights[index % timelineCardHeights.length],
               ...(index === 0 && wallPoster && {
                 "--featured-left": `${wallPoster.left}px`,
                 "--featured-bottom": `calc(100cqh - ${wallPoster.bottom}px)`,
@@ -380,7 +383,7 @@ export function MovieEdit() {
               {index === 0 && <canvas ref={paperCanvas} inert className="cinema-paper-sheet" />}
               <span aria-hidden="true" className="absolute right-2 bottom-2 rounded-full bg-black/80 px-3 py-1 font-mono text-xs opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Play trailer</span>
             </button>
-            <figcaption className="grid gap-1 text-center font-mono text-[clamp(0.625rem,1.1vw,0.875rem)] text-paper">
+            <figcaption className="cinema-card-caption">
               {movie.title}
               <span className="cinema-timeline-label text-muted">{movie.awardYear}</span>
             </figcaption>
@@ -388,7 +391,7 @@ export function MovieEdit() {
         ))}
 
         {phase === "cinema" && timelineVisible && (
-          <nav aria-label="Best Picture years" className="absolute inset-x-page bottom-[8%] z-[4] flex justify-start gap-1.5 overflow-x-auto md:justify-center md:gap-3" data-lenis-prevent-horizontal>
+          <nav aria-label="Best Picture years" className="cinema-years-nav absolute inset-x-page bottom-[8%] z-[4] flex justify-start gap-1.5 overflow-x-auto md:justify-center md:gap-3" data-lenis-prevent-horizontal>
             {bestPictureWinners.map((film, index) => (
               <button
                 key={film.awardYear}
@@ -407,7 +410,7 @@ export function MovieEdit() {
         {trailer && <TrailerDialog movie={trailer} onClose={closeTrailer} />}
 
         {phase === "cinema" && playback !== "unavailable" && (
-          <div className="absolute inset-x-0 bottom-0 z-[4] flex justify-between gap-2 px-page pb-6 md:pb-8">
+          <div className="cinema-controls absolute inset-x-0 bottom-0 z-[4] flex justify-between gap-2 px-page pb-6 md:pb-8">
             <button type="button" onClick={togglePlayback} className={control}>
               {playback === "playing" ? "Pause" : "Play"}
             </button>

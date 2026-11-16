@@ -1,5 +1,4 @@
 import { connection } from "next/server";
-import { HypertubeStatement } from "./components/hypertube-statement";
 import { MovieEdit } from "./components/movie-edit";
 
 async function getApiStatus() {
@@ -40,7 +39,6 @@ export default async function Home() {
     <>
       <main>
         <MovieEdit />
-        <HypertubeStatement />
       </main>
       <section id="api-status" aria-labelledby="api-status-title" tabIndex={-1} className="px-page py-10">
         <h2 id="api-status-title" className="font-display text-2xl font-bold uppercase">API status</h2>

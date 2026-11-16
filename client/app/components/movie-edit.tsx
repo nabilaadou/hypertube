@@ -10,6 +10,7 @@ import { type CSSProperties, type PointerEvent, useCallback, useEffect, useRef, 
 import { bestPictureWinners, cinemaMedia, type Movie } from "../data/movies";
 import type { createCinemaPaperSurface, PaperPose } from "./cinema-paper-surface";
 import { projectVideo, type ScreenCorners } from "./cinema-projection";
+import { HypertubeStatement } from "./hypertube-statement";
 import { Noise } from "./noise";
 import { TrailerDialog } from "./trailer-dialog";
 import { useCinemaReveal } from "./use-cinema-reveal";
@@ -18,7 +19,8 @@ const CinemaScene = dynamic(() => import("./cinema-scene"), { ssr: false });
 
 const featured = bestPictureWinners[0];
 const handoffViewports = 1.8;
-const timelineExitViewports = 0.9;
+const timelineExitViewports = 2.35;
+const quoteHoldViewports = 0.6;
 const filmViewports = 0.66;
 const lastFilm = bestPictureWinners.length - 1;
 const timelineStart = handoffViewports;
@@ -139,12 +141,9 @@ export function MovieEdit() {
           onRefresh: syncTimeline,
         },
       });
-      gsap.to(section, {
-        "--timeline-exit": 1.95,
-        "--timeline-tail": 1,
-        ease: reduced ? "steps(1)" : "none",
-        onUpdate(this: gsap.core.Tween) {
-          setTimelineLeaving(this.progress() >= 0.4);
+      const quoteTransition = gsap.timeline({
+        onUpdate() {
+          setTimelineLeaving(this.time() >= (reduced ? 0.42 : 0.27));
         },
         scrollTrigger: {
           trigger: scrollArea,
@@ -153,6 +152,39 @@ export function MovieEdit() {
           scrub,
         },
       });
+      if (reduced) {
+        quoteTransition.set(section, {
+          "--timeline-content-opacity": 0,
+          "--timeline-field-opacity": 0,
+          "--quote-visibility": "visible",
+          "--quote-background": 1,
+          "--quote-x": "0cqw",
+          "--quote-y": "0cqh",
+          "--quote-scale": 1,
+          "--quote-edge": "-24%",
+          "--quote-fill": "100%",
+          "--quote-marks-y": "0cqh",
+          "--quote-credit-y": "0cqh",
+          "--quote-credit-opacity": 0.85,
+        }, 0.42).set(section, { "--quote-credit-opacity": 0.85 }, 1);
+      } else {
+        quoteTransition
+          .to(section, { "--timeline-exit": 1.85, duration: 0.5, ease: "none" }, 0)
+          .to(section, { "--timeline-field-opacity": 0, duration: 0.29, ease: "none" }, 0.18)
+          .to(section, { "--timeline-content-opacity": 0, duration: 0.08, ease: "none" }, 0.43)
+          .set(section, { "--quote-visibility": "visible" }, 0.25)
+          .to(section, { "--quote-x": "53cqw", "--quote-edge": "32%", duration: 0.12, ease: "none" }, 0.25)
+          .to(section, { "--quote-x": "0cqw", "--quote-edge": "-24%", duration: 0.2, ease: "sine.out" }, 0.37)
+          .to(section, { "--quote-scale": 3.75, duration: 0.25, ease: "none" }, 0.25)
+          .to(section, { "--quote-scale": 2.15, "--quote-y": "4cqh", duration: 0.2, ease: "none" }, 0.5)
+          .to(section, { "--quote-scale": 1.15, "--quote-y": "0cqh", duration: 0.2, ease: "sine.out" }, 0.7)
+          .to(section, { "--quote-scale": 1, duration: 0.1, ease: "sine.out" }, 0.9)
+          .to(section, { "--quote-background": 1, duration: 0.34, ease: "sine.inOut" }, 0.65)
+          .to(section, { "--quote-fill": "100%", duration: 0.25, ease: "none" }, 0.7)
+          .to(section, { "--quote-marks-y": "0cqh", duration: 0.29, ease: "power2.out" }, 0.65)
+          .to(section, { "--quote-credit-y": "0cqh", "--quote-credit-opacity": 0.85, duration: 0.28, ease: "sine.out" }, 0.72);
+      }
+
       const animation = gsap.timeline({
         scrollTrigger: {
           trigger: scrollArea,
@@ -315,7 +347,7 @@ export function MovieEdit() {
   const playbackAction = playback === "playing" ? "Pause" : "Play";
 
   return (
-    <div ref={runway} style={{ minHeight: `${(1 + timelineEnd + timelineExitViewports) * 100}svh` }}>
+    <div ref={runway} style={{ minHeight: `${(1 + timelineEnd + timelineExitViewports + quoteHoldViewports) * 100}svh` }}>
       <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} data-timeline-active={timelineVisible} className="cinema-stage sticky top-0 isolate h-svh overflow-clip bg-theater text-paper">
         <div ref={worldLayer} className="cinema-world" data-lights-on={lightsOn}>
           <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
@@ -396,7 +428,7 @@ export function MovieEdit() {
               </button>
             ))}
           </nav>
-          <p aria-hidden="true" className="cinema-timeline-exit-copy hypertube-statement-title">Every film opens<br />another world.</p>
+          <HypertubeStatement />
         </section>
 
         {phase === "cinema" && wallPoster && playback !== "unavailable" && (

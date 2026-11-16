@@ -7,7 +7,6 @@
   --color-muted: #aaa49e;
   --color-theater: #100d15;
   --color-quote: #201729;
-  --color-timeline: #493166;
   --color-gold: #b38948;
   --color-focus: #39b8cf;
   --radius-card: 0.5rem;
@@ -129,8 +128,18 @@ html::-webkit-scrollbar {
   --track-index: 0;
   --timeline-entry: 0;
   --timeline-exit: 0;
-  --timeline-tail: 0;
-  --timeline-content-opacity: clamp(0, 1 - var(--timeline-tail) * 2.5, 1);
+  --timeline-content-opacity: 1;
+  --timeline-field-opacity: 1;
+  --quote-visibility: hidden;
+  --quote-background: 0;
+  --quote-x: 140cqw;
+  --quote-y: 10cqh;
+  --quote-scale: 5.1;
+  --quote-edge: 63%;
+  --quote-fill: -25%;
+  --quote-marks-y: -74cqh;
+  --quote-credit-y: 62cqh;
+  --quote-credit-opacity: 0;
   --track-offset: calc(var(--timeline-entry) - var(--track-index) - var(--timeline-exit));
   --card-step: 32cqw;
   --track-travel: calc(var(--track-offset) * var(--card-step));
@@ -173,15 +182,15 @@ html::-webkit-scrollbar {
   content: "";
   position: absolute;
   inset: 0;
-  opacity: var(--timeline-tail);
-  background: radial-gradient(ellipse at 40% 24%, var(--color-timeline), var(--color-quote) 58%, var(--color-theater));
+  opacity: var(--quote-background);
+  background: radial-gradient(ellipse at 25% 33%, #292137, #21192b 58%, #17121e);
 }
 
 .cinema-noise {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  opacity: calc(0.32 * var(--timeline-content-opacity));
+  opacity: calc(0.32 + var(--quote-background) * 0.13);
   mix-blend-mode: overlay;
   pointer-events: none;
 }
@@ -210,7 +219,7 @@ html::-webkit-scrollbar {
 
 .cinema-timeline-grid {
   pointer-events: none;
-  opacity: var(--timeline-content-opacity);
+  opacity: var(--timeline-field-opacity);
   background: linear-gradient(to right, #e9d9ef20 1px, transparent 1px) var(--grid-origin) 0 / var(--card-step) 100%;
 }
 
@@ -225,7 +234,7 @@ html::-webkit-scrollbar {
 }
 
 .cinema-timeline-label {
-  opacity: calc(var(--timeline-labels) * var(--timeline-content-opacity));
+  opacity: calc(var(--timeline-labels) * var(--timeline-field-opacity));
 }
 
 .cinema-timeline-heading {
@@ -440,21 +449,6 @@ html::-webkit-scrollbar {
   opacity: var(--poster-caption);
 }
 
-.cinema-timeline-exit-copy {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: max-content;
-  max-width: calc(100cqw - 2 * var(--spacing-page));
-  color: var(--color-paper);
-  font: 900 clamp(2.75rem, 10.3cqw, 12rem) / 0.87 var(--font-barlow), Impact, sans-serif;
-  text-align: center;
-  text-transform: uppercase;
-  pointer-events: none;
-  opacity: clamp(0, var(--timeline-tail) * 2 - 0.35, 1);
-  transform: translate(-50%, -50%) scale(calc(1 + (1 - var(--timeline-tail)) * 5));
-}
-
 @media (width < 48rem) {
   .cinema-stage {
     --timeline-width: clamp(5.25rem, 28cqw, min(11rem, 27cqh));
@@ -500,36 +494,53 @@ html::-webkit-scrollbar {
     transform: none;
     transition: none;
   }
-
-  .cinema-timeline-exit-copy {
-    transform: translate(-50%, -50%);
-  }
 }
 
 .hypertube-statement {
-  background: radial-gradient(ellipse at 40% 24%, var(--color-timeline), var(--color-quote) 58%, var(--color-theater));
-}
-
-.hypertube-statement::before {
-  content: "";
   position: absolute;
   inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  visibility: var(--quote-visibility);
   pointer-events: none;
-  opacity: 0.27;
-  background:
-    radial-gradient(circle, #f1ede43b 0.5px, transparent 0.9px) 0 0 / 5px 7px,
-    radial-gradient(circle, #0009 0.6px, transparent 1px) 2px 3px / 7px 9px;
+  text-align: center;
+}
+
+.hypertube-quote {
+  display: grid;
+  justify-items: center;
+  gap: 5.5cqh;
+  max-width: calc(100cqw - 2 * var(--spacing-page));
+}
+
+.hypertube-quote-marks {
+  color: #837b6d;
+  font: 900 clamp(2.75rem, 6.3cqw, 5.5rem) / 0.65 var(--font-dm-sans), sans-serif;
+  transform: translateY(var(--quote-marks-y));
+}
+
+.hypertube-statement-title {
+  color: #b6ae9f;
+  font: 800 clamp(2rem, min(8.2cqw, 12.8cqh), 7.5rem) / 1.22 var(--font-firjar-arabic), Tahoma, sans-serif;
+  font-stretch: 75%;
+  transform: translate(var(--quote-x), var(--quote-y)) scale(var(--quote-scale));
+  mask-image: linear-gradient(to right, transparent var(--quote-edge), #000 calc(var(--quote-edge) + 24%));
+}
+
+.hypertube-quote-credit {
+  color: var(--color-paper);
+  font: 400 clamp(0.875rem, 1.16cqw, 1.125rem) / 1.5 var(--font-firjar-arabic), Tahoma, sans-serif;
+  opacity: var(--quote-credit-opacity);
+  transform: translateY(var(--quote-credit-y));
 }
 
 @supports (background-clip: text) {
   .hypertube-statement-title {
     color: transparent;
-    background: radial-gradient(circle, #f1ede4 0.8px, #ccc0cb 1.2px, #a99ba9 1.55px) 0 0 / 4px 4px;
-    background-clip: text;
-  }
-
-  .cinema-timeline-exit-copy {
-    background: radial-gradient(circle, #ead9ce 0.7px, transparent 0.95px) 0 0 / 4px 4px;
+    background:
+      linear-gradient(145deg, #b6ae9f var(--quote-fill), transparent var(--quote-fill)),
+      radial-gradient(circle, #b6ae9f 0.62px, transparent 0.85px) 0 0 / 2.6px 2.6px;
     background-clip: text;
   }
 }

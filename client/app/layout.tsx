@@ -14,6 +14,13 @@ const timelineFont = localFont({
   adjustFontFallback: false,
   declarations: [{ prop: "font-stretch", value: "75% 125%" }],
 });
+const quoteFont = localFont({
+  src: "./fonts/Firjar-Arabic.woff2",
+  weight: "100 800",
+  variable: "--font-firjar-arabic",
+  adjustFontFallback: false,
+  declarations: [{ prop: "font-stretch", value: "75% 125%" }],
+});
 const monoFont = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400"], variable: "--font-ibm-plex" });
 
 export const metadata: Metadata = {
@@ -23,7 +30,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
-      <body className={`${bodyFont.variable} ${displayFont.variable} ${timelineFont.variable} ${monoFont.variable}`}>
+      <body className={`${bodyFont.variable} ${displayFont.variable} ${timelineFont.variable} ${quoteFont.variable} ${monoFont.variable}`}>
         <SmoothScroll>{children}</SmoothScroll>
       </body>
     </html>

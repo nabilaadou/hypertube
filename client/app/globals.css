@@ -39,6 +39,16 @@
   }
 }
 
+html,
+.cinema-years-nav {
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+.cinema-years-nav::-webkit-scrollbar {
+  display: none;
+}
+
 .cinema-stage {
   container-type: size;
   --reveal: 0;

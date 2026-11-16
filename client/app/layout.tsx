@@ -5,7 +5,7 @@ import { SmoothScroll } from "./components/smooth-scroll";
 import "./globals.css";
 
 const bodyFont = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });
-const displayFont = Barlow_Condensed({ subsets: ["latin"], weight: ["300", "700", "800", "900"], variable: "--font-barlow" });
+const displayFont = Barlow_Condensed({ subsets: ["latin"], weight: ["700", "800", "900"], variable: "--font-barlow" });
 const monoFont = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400"], variable: "--font-ibm-plex" });
 
 export const metadata: Metadata = {

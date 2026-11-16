@@ -236,7 +236,7 @@ html::-webkit-scrollbar {
   color: transparent;
   background: linear-gradient(#4e3075e6, #30204ae6 66%, #22163064);
   background-clip: text;
-  font: 900 min(19cqw, 34cqh) / 0.78 var(--font-barlow), Impact, sans-serif;
+  font: 900 min(19cqw, 34cqh) / 0.88 var(--font-big-shoulders), var(--font-barlow), Impact, sans-serif;
   letter-spacing: -0.028em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -257,7 +257,7 @@ html::-webkit-scrollbar {
   min-width: 2.75rem;
   padding-inline: 0.25rem;
   color: #8c7c98e6;
-  font: 600 clamp(1.65rem, min(6.4cqw, 9.2cqh), 5rem) / 1 var(--font-barlow), Impact, sans-serif;
+  font: 600 clamp(1.65rem, min(6.4cqw, 9.2cqh), 5rem) / 1 var(--font-big-shoulders), var(--font-barlow), Impact, sans-serif;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: pointer;

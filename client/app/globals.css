@@ -147,11 +147,7 @@ html::-webkit-scrollbar {
 .cinema-timeline {
   visibility: hidden;
   z-index: 2;
-  background:
-    radial-gradient(circle at 2px 3px, #e3d1ef12 0.35px, transparent 0.9px) 0 0 / 7px 9px,
-    radial-gradient(circle at 4px 2px, #0004 0.6px, transparent 1.2px) 3px 1px / 11px 13px,
-    radial-gradient(circle at 2px 6px, #b4a1bb0d 0.4px, transparent 1px) 0 2px / 13px 11px,
-    radial-gradient(ellipse at 19% 30%, #231a2d, #100d15 62%, #0a080e);
+  background: radial-gradient(ellipse at 19% 30%, #231a2d, #100d15 62%, #0a080e);
   clip-path: polygon(
     0 calc(100% - var(--wipe) * 120%),
     100% calc(100% - var(--wipe) * 180%),
@@ -181,6 +177,37 @@ html::-webkit-scrollbar {
   background: radial-gradient(ellipse at 40% 24%, var(--color-timeline), var(--color-quote) 58%, var(--color-theater));
 }
 
+.cinema-noise {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: calc(0.32 * var(--timeline-content-opacity));
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+.cinema-noise > span {
+  position: absolute;
+  inset: -32px;
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cinema-noise[data-animated="true"] > span {
+    animation: cinema-grain 250ms steps(1) infinite;
+  }
+}
+
+@keyframes cinema-grain {
+  0% { transform: translate(0, 0); }
+  16.67% { transform: translate(-19px, 13px); }
+  33.33% { transform: translate(27px, -23px); }
+  50% { transform: translate(-9px, -4px); }
+  66.67% { transform: translate(16px, 29px); }
+  83.33% { transform: translate(-28px, -16px); }
+}
+
 .cinema-timeline-grid {
   pointer-events: none;
   opacity: var(--timeline-content-opacity);
@@ -207,7 +234,7 @@ html::-webkit-scrollbar {
   left: 50%;
   margin: 0;
   color: transparent;
-  background: linear-gradient(#4e3075, #30204a 66%, #22163070);
+  background: linear-gradient(#4e3075e6, #30204ae6 66%, #22163064);
   background-clip: text;
   font: 900 min(19cqw, 34cqh) / 0.78 var(--font-barlow), Impact, sans-serif;
   letter-spacing: -0.028em;
@@ -229,7 +256,7 @@ html::-webkit-scrollbar {
   height: 100%;
   min-width: 2.75rem;
   padding-inline: 0.25rem;
-  color: #8c7c98;
+  color: #8c7c98e6;
   font: 600 clamp(1.65rem, min(6.4cqw, 9.2cqh), 5rem) / 1 var(--font-barlow), Impact, sans-serif;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -243,7 +270,11 @@ html::-webkit-scrollbar {
   transform: scaleX(0.66);
 }
 
-.cinema-year-track > button:is([aria-current="true"], :hover, :focus-visible) {
+.cinema-year-track > button[aria-current="true"] {
+  color: #c8b8d3e6;
+}
+
+.cinema-year-track > button:is(:hover, :focus-visible) {
   color: #c8b8d3;
 }
 
@@ -346,7 +377,7 @@ html::-webkit-scrollbar {
   text-align: center;
   text-wrap: balance;
   text-transform: uppercase;
-  color: #e8d7cd;
+  color: #e8d7cde6;
   font: 400 clamp(0.6rem, 0.78cqw, 0.76rem) / 1.35 var(--font-ibm-plex), monospace;
   letter-spacing: 0.14em;
   transform: translateX(-50%);

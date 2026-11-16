@@ -10,6 +10,7 @@ import { type CSSProperties, type PointerEvent, useCallback, useEffect, useRef, 
 import { bestPictureWinners, cinemaMedia, type Movie } from "../data/movies";
 import type { createCinemaPaperSurface, PaperPose } from "./cinema-paper-surface";
 import { projectVideo, type ScreenCorners } from "./cinema-projection";
+import { Noise } from "./noise";
 import { TrailerDialog } from "./trailer-dialog";
 import { useCinemaReveal } from "./use-cinema-reveal";
 
@@ -374,6 +375,7 @@ export function MovieEdit() {
         </header>
 
         <section aria-labelledby="timeline-title" className="cinema-timeline absolute inset-0">
+          {phase === "cinema" && <Noise animated={timelineVisible && !timelineLeaving} />}
           <div className="cinema-timeline-grid absolute inset-0" aria-hidden="true" />
           <h2 id="timeline-title" className="cinema-timeline-heading cinema-timeline-label">
             {featured.award}

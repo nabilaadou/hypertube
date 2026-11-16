@@ -137,7 +137,7 @@ html::-webkit-scrollbar {
   --timeline-width: clamp(6.5rem, 16cqw, min(17rem, 29cqh));
   --timeline-card-drop: 0;
   --year-marker-inset: calc(var(--card-step) / 2);
-  --year-marker-height: clamp(2.75rem, 10cqh, 4.75rem);
+  --year-marker-height: clamp(2.75rem, 16cqh, 8rem);
   --year-marker-top: calc(79cqh - var(--year-marker-height) / 2);
   --grid-origin: calc(50cqw - var(--year-marker-inset) + var(--track-travel));
   --card-bottom-limit: calc(100cqh - var(--timeline-width) * 1.58 - 3rem);
@@ -145,13 +145,15 @@ html::-webkit-scrollbar {
 }
 
 .cinema-timeline {
+  --timeline-grain: url("/textures/timeline-grain.webp");
   visibility: hidden;
   z-index: 2;
   background:
-    radial-gradient(circle at 2px 3px, #e3d1ef12 0.35px, transparent 0.9px) 0 0 / 7px 9px,
-    radial-gradient(circle at 4px 2px, #0004 0.6px, transparent 1.2px) 3px 1px / 11px 13px,
-    radial-gradient(circle at 2px 6px, #b4a1bb0d 0.4px, transparent 1px) 0 2px / 13px 11px,
-    radial-gradient(ellipse at 19% 30%, #231a2d, #100d15 62%, #0a080e);
+    var(--timeline-grain) 0 0 / 170px 170px,
+    radial-gradient(ellipse 48% 105% at 16% 39%, #322a3f, #1d1729 57%, transparent 100%),
+    radial-gradient(ellipse 30% 44% at 31% 100%, #21182e, transparent),
+    linear-gradient(104deg, #15121f, #0e0b15 51%, #08070c 100%);
+  background-blend-mode: soft-light, normal, normal, normal;
   clip-path: polygon(
     0 calc(100% - var(--wipe) * 120%),
     100% calc(100% - var(--wipe) * 180%),
@@ -187,6 +189,14 @@ html::-webkit-scrollbar {
   background: linear-gradient(to right, #e9d9ef20 1px, transparent 1px) var(--grid-origin) 0 / var(--card-step) 100%;
 }
 
+.cinema-timeline-grid::before {
+  content: "";
+  position: absolute;
+  inset: 49% 0 auto;
+  height: 1.25rem;
+  background: linear-gradient(to right, #d5c2dd1c 1px, transparent 1px) var(--grid-origin) 0 / calc(var(--card-step) / 8) 100%;
+}
+
 .cinema-timeline-grid::after {
   content: "";
   position: absolute;
@@ -203,17 +213,21 @@ html::-webkit-scrollbar {
 
 .cinema-timeline-heading {
   position: absolute;
-  top: 4.6cqh;
+  top: 1.25cqh;
   left: 50%;
   margin: 0;
   color: transparent;
-  background: linear-gradient(#4e3075, #30204a 66%, #22163070);
+  background:
+    var(--timeline-grain) 0 0 / 170px 170px,
+    linear-gradient(101deg, #4f357b 3%, #382269 54%, #241447 100%);
+  background-blend-mode: soft-light, normal;
   background-clip: text;
-  font: 900 min(19cqw, 34cqh) / 0.78 var(--font-barlow), Impact, sans-serif;
-  letter-spacing: -0.028em;
+  font: 900 min(23cqw, 38.8cqh) / 0.83 var(--font-barlow), Impact, sans-serif;
+  letter-spacing: -0.03em;
+  mask-image: linear-gradient(#000 47%, #000a 74%, transparent 100%);
   text-transform: uppercase;
   white-space: nowrap;
-  transform: translateX(-50%);
+  transform: translateX(-50%) scaleX(0.89);
 }
 
 .cinema-year-track {
@@ -225,13 +239,16 @@ html::-webkit-scrollbar {
 
 .cinema-year-track > button {
   position: absolute;
+  display: grid;
+  place-items: center;
   left: calc(50% - var(--year-marker-inset));
   height: 100%;
   min-width: 2.75rem;
   padding-inline: 0.25rem;
-  color: #8c7c98;
-  font: 600 clamp(1.65rem, min(6.4cqw, 9.2cqh), 5rem) / 1 var(--font-barlow), Impact, sans-serif;
+  color: #716779;
+  font: 300 clamp(2.75rem, min(9cqw, 16cqh), 8rem) / 1 var(--font-barlow), Impact, sans-serif;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.065em;
   white-space: nowrap;
   cursor: pointer;
   pointer-events: auto;
@@ -239,12 +256,11 @@ html::-webkit-scrollbar {
 }
 
 .cinema-year-track > button > span {
-  display: block;
-  transform: scaleX(0.66);
+  transform: scaleX(0.58);
 }
 
 .cinema-year-track > button:is([aria-current="true"], :hover, :focus-visible) {
-  color: #c8b8d3;
+  color: #aa9ab7;
 }
 
 :is(.cinema-track-card, .cinema-year-track > button) {
@@ -339,16 +355,16 @@ html::-webkit-scrollbar {
 
 .cinema-card-caption {
   position: absolute;
-  top: calc(100% + 0.65rem);
+  top: calc(100% + clamp(0.65rem, 1.3cqw, 1.1rem));
   left: 50%;
   width: max-content;
   max-width: min(var(--timeline-width) * 1.18, var(--card-step));
   text-align: center;
   text-wrap: balance;
   text-transform: uppercase;
-  color: #e8d7cd;
-  font: 400 clamp(0.6rem, 0.78cqw, 0.76rem) / 1.35 var(--font-ibm-plex), monospace;
-  letter-spacing: 0.14em;
+  color: #f4efe6;
+  font: 400 clamp(0.625rem, 1.02cqw, 0.8125rem) / 1.55 var(--font-ibm-plex), monospace;
+  letter-spacing: 0.12em;
   transform: translateX(-50%);
 }
 
@@ -427,8 +443,13 @@ html::-webkit-scrollbar {
     --timeline-width: clamp(5.25rem, 28cqw, min(11rem, 27cqh));
     --timeline-card-drop: 10;
     --year-marker-inset: 0px;
+    --year-marker-height: clamp(2.75rem, 10cqh, 4.75rem);
     --year-marker-top: calc(100cqh - 4.25rem - var(--year-marker-height));
     --card-bottom-limit: calc(var(--year-marker-top) - var(--timeline-width) * 1.58 - 3rem);
+  }
+
+  .cinema-year-track > button {
+    font-size: clamp(2rem, 8cqw, 3.5rem);
   }
 
 }

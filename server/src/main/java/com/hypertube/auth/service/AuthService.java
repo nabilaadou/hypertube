@@ -9,10 +9,10 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import com.hypertube.auth.model.LoginHandoff;
-import com.hypertube.auth.model.OAuthIdentity;
-import com.hypertube.auth.model.UserProfile;
-import com.hypertube.auth.repository.AuthUserRepository;
 import com.hypertube.auth.repository.LoginHandoffRepository;
+import com.hypertube.auth.repository.UserRepository;
+import com.hypertube.auth.schema.OAuthIdentity;
+import com.hypertube.auth.schema.UserProfile;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,10 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
     private static final Pattern PROOF = Pattern.compile("[0-9a-f]{64}");
     private final LoginHandoffRepository handoffs;
-    private final AuthUserRepository users;
+    private final UserRepository users;
     private final byte[] handoffAuthorization;
 
-    AuthService(LoginHandoffRepository handoffs, AuthUserRepository users,
+    AuthService(LoginHandoffRepository handoffs, UserRepository users,
                 @Value("${hypertube.auth.handoff-secret}") String secret) {
         this.handoffs = handoffs;
         this.users = users;
@@ -42,16 +42,12 @@ public class AuthService {
     }
 
     @Transactional
-    public Optional<Long> finishLogin(UUID code, String proof) {
+    public Optional<UserProfile> finishLogin(UUID code, String proof) {
         if (!PROOF.matcher(proof).matches()) {
             return Optional.empty();
         }
-        return handoffs.redeem(code, HexFormat.of().formatHex(digest(proof)));
-    }
-
-    @Transactional(readOnly = true)
-    public Optional<UserProfile> findProfile(long id) {
-        return users.findProfileById(id);
+        return handoffs.redeem(code, HexFormat.of().formatHex(digest(proof)))
+                .flatMap(users::findProfileById);
     }
 
     private static byte[] digest(String value) {

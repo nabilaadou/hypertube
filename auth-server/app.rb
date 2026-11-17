@@ -5,7 +5,7 @@ require "net/http"
 require "securerandom"
 
 class AuthServer < Sinatra::Base
-  LOGIN_COMPLETE_PATH = "/api/auth/complete".freeze
+  LOGIN_COMPLETE_PATH = "/api/auth/login-handoffs/complete".freeze
   LOGIN_CODE_FORMAT = /\A[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\z/
 
   set :show_exceptions, false
@@ -66,12 +66,17 @@ class AuthServer < Sinatra::Base
       email: provider_account.info.email.to_s.strip[0, 254],
       proofHash: Digest::SHA256.hexdigest(browser_proof)
     }
-    login_code = create_login_handoff(identity.transform_values { |value| value.empty? ? nil : value })
+    @login_code = create_login_handoff(identity.transform_values { |value| value.empty? ? nil : value })
 
     response.set_cookie("hypertube_login_proof", value: browser_proof, path: LOGIN_COMPLETE_PATH,
                         max_age: 120, httponly: true, same_site: :lax,
                         secure: settings.spring_public_url.scheme == "https")
-    redirect "#{settings.spring_public_url.origin}#{LOGIN_COMPLETE_PATH}?code=#{login_code}", 303
+    @login_complete_url = "#{settings.spring_public_url.origin}#{LOGIN_COMPLETE_PATH}"
+    @script_nonce = SecureRandom.base64(16)
+    headers "Content-Security-Policy" => "default-src 'none'; style-src 'self'; " \
+              "script-src 'nonce-#{@script_nonce}'; form-action #{settings.spring_public_url.origin}; " \
+              "base-uri 'none'; frame-ancestors 'none'"
+    erb :complete
   end
 
   error do

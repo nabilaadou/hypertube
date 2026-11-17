@@ -26,7 +26,7 @@ AuthServer.set :providers, {
 AuthServer.set :base_url, auth_base_url.origin
 AuthServer.set :spring_public_url, spring_public_url
 AuthServer.set :login_handoff_secret, ENV.fetch("AUTH_HANDOFF_SECRET")
-AuthServer.set :login_handoff_url, URI.join(spring_internal_url, "/internal/auth/identities")
+AuthServer.set :login_handoff_url, URI.join(spring_internal_url, "/internal/auth/login-handoffs")
 AuthServer.set :host_authorization, { permitted_hosts: [auth_base_url.hostname] }
 
 OmniAuth.configure do |config|

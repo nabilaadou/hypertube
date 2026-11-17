@@ -2,10 +2,10 @@ package com.hypertube.auth.repository;
 
 import java.util.Optional;
 
-import com.hypertube.auth.model.AuthUser;
-import com.hypertube.auth.model.UserProfile;
+import com.hypertube.auth.model.User;
+import com.hypertube.auth.schema.UserProfile;
 import org.springframework.data.repository.Repository;
 
-public interface AuthUserRepository extends Repository<AuthUser, Long> {
+public interface UserRepository extends Repository<User, Long> {
     Optional<UserProfile> findProfileById(long id);
 }

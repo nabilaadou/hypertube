@@ -3,18 +3,25 @@ package com.hypertube.auth.model;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.hypertube.auth.schema.OAuthIdentity;
+import jakarta.persistence.CheckConstraint;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "oauth_login_handoffs")
+@Table(name = "oauth_login_handoffs",
+        indexes = @Index(name = "oauth_login_handoffs_expiration", columnList = "expires_at"),
+        check = @CheckConstraint(name = "oauth_login_handoffs_provider_check",
+                constraint = "provider in ('42', 'google')"))
 public class LoginHandoff {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -37,6 +44,7 @@ public class LoginHandoff {
     private String email;
 
     @Generated
+    @ColumnDefault("(now() + interval '2 minutes')")
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 

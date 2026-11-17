@@ -1,4 +1,4 @@
-package com.hypertube.auth.model;
+package com.hypertube.auth.schema;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

@@ -45,7 +45,15 @@ POSTGRES_PASSWORD=your-local-postgres-password mvn spring-boot:run
 
 Use a running PostgreSQL instance and set `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, or `POSTGRES_USER` if your connection differs from `localhost:5432`, database `hypertube`, user `hypertube`.
 
-Spring Boot runs [Flyway migrations](server/src/main/resources/db/migration) on startup. Flyway tracks which scripts have run in `flyway_schema_history`. For a new schema change, add a versioned SQL script such as `V2__add_user_preferences.sql`. Hibernate validates the entity mappings against the migrated schema.
+Define tables, constraints, indexes, and defaults in the Java entity classes. After changing an entity, generate the next Flyway migration from the repository root.
+
+```sh
+make migration NAME=add_user_preferences
+```
+
+The command exports Hibernate's schema and uses Atlas with an isolated PostgreSQL container to compare it with the existing migration history. It generates the SQL, versioned filenames, and checksum file under `server/src/main/resources/db/migration`. Review and commit the generated changes with the entity edits. Migration generation requires Docker and keeps the application database separate from its scratch database.
+
+Spring Boot applies pending Flyway migrations on startup and records them in `flyway_schema_history`. Hibernate validates the resulting tables against the entities.
 
 Start Next.js in a second terminal.
 
@@ -81,7 +89,7 @@ Register the redirect URIs with your 42 application and Google **Web application
 docker compose up --build auth-server
 ```
 
-Open `http://localhost:4567` and select a provider. After a successful callback, Spring Boot saves the user in PostgreSQL, starts a browser session, and redirects to `http://localhost:8080/api/auth/me`. The JSON response contains the database ID, provider, provider user ID, and available name and email. Repeat sign-ins with the same provider account reuse the database ID. `/api/auth/me` returns `401` without a Hypertube session.
+Open `http://localhost:4567` and select a provider. After a successful callback, the auth service creates a handoff through `POST /internal/auth/login-handoffs`. Handoffs expire after two minutes. The browser submits the handoff to `POST /api/auth/login-handoffs/complete`, which saves or updates the user in PostgreSQL and returns their profile as JSON. The response contains the database ID, provider, provider user ID, and available name and email. Repeat sign-ins with the same provider account reuse the database ID. Application session handling is a separate implementation step.
 
 Run the Compose command again after changing `.env`. Use the same browser-facing hostname and scheme in `AUTH_BASE_URL` and `SPRING_PUBLIC_URL` so the browser can carry the login cookie to Spring Boot. The auth service starts Spring Boot and PostgreSQL as dependencies.
 

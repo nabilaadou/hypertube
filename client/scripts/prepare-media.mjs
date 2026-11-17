@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir, stat } from "node:fs/promises";
+import { copyFile, mkdir, stat } from "node:fs/promises";
 
 const repairedReel = new URL("../../design-assets/reel-with-sound.mp4", import.meta.url);
 const reel = await stat(repairedReel).then(
@@ -15,19 +15,6 @@ const assets = [
   ["../../design-assets/reel-poster.jpg", "../public/media/reel-poster.jpg"],
   ["../../design-assets/theater.png", "../public/media/theater.png"],
 ];
-
-const trailerDirectory = new URL("../../assets/trailers-compatible/", import.meta.url);
-const trailerFiles = await readdir(trailerDirectory).catch((error) => {
-  if (error.code !== "ENOENT") throw error;
-  console.warn(`Source unavailable: ${trailerDirectory.pathname}. Supply compatible trailers to enable playback.`);
-  return [];
-});
-
-for (const file of trailerFiles) {
-  if (file.endsWith(".mp4")) {
-    assets.push([`../../assets/trailers-compatible/${file}`, `../public/media/trailers/${file}`]);
-  }
-}
 
 for (const [sourcePath, targetPath] of assets) {
   const source = new URL(sourcePath, import.meta.url);

@@ -24,7 +24,7 @@ import {
 } from "three";
 import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { bestPictureWinners, cinemaMedia } from "../data/movies";
+import { movies, cinemaMedia } from "../data/movies";
 import { projectionScreenAspect, type ScreenCorners } from "./cinema-projection";
 import { createCinemaWallPoster } from "./cinema-wall-poster";
 
@@ -270,7 +270,7 @@ export default function CinemaScene({
       resize();
       drawRef.current = draw;
 
-      void new TextureLoader().loadAsync(bestPictureWinners[0].poster).then((poster) => {
+      void new TextureLoader().loadAsync(movies[0].poster).then((poster) => {
         if (events.signal.aborted) {
           poster.dispose();
           return;

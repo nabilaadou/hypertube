@@ -1,87 +1,85 @@
 export type Movie = {
-  title: string;
-  awardYear: number;
-  award: string;
-  poster: string;
-  trailerId: string;
+	title: string;
+	releaseYear: number;
+	poster: string;
+	trailerId: string;
 };
 
-export const bestPictureWinners = [
-  {
-    title: "Kramer vs. Kramer",
-    awardYear: 1980,
-    award: "Best Picture",
-    poster: "https://media.senscritique.com/media/000016148327/0/kramer_contre_kramer.jpg",
-    trailerId: "OXw67SqTtNg",
-  },
-  {
-    title: "Amadeus",
-    awardYear: 1985,
-    award: "Best Picture",
-    poster: "https://cameralabs.org/aeonmedia/zenfoto/12441/99027/amadej-amadeus-1984-rezhissjor-milosh-forman-amerikanskij-poster-k_original.jpg",
-    trailerId: "POe2mmWaR0k",
-  },
-  {
-    title: "The Silence of the Lambs",
-    awardYear: 1992,
-    award: "Best Picture",
-    poster: "https://image.tmdb.org/t/p/w500/uS9m8OBk1A8eM9I042bx8XXpqAq.jpg",
-    trailerId: "6iB21hsprAQ",
-  },
-  {
-    title: "Schindler’s List",
-    awardYear: 1994,
-    award: "Best Picture",
-    poster: "https://image.tmdb.org/t/p/w500/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg",
-    trailerId: "JdRGC-w9syA",
-  },
-  {
-    title: "The Lord of the Rings: The Return of the King",
-    awardYear: 2004,
-    award: "Best Picture",
-    poster: "https://image.tmdb.org/t/p/w500/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg",
-    trailerId: "r5X-hFf6Bwo",
-  },
-  {
-    title: "No Country for Old Men",
-    awardYear: 2008,
-    award: "Best Picture",
-    poster: "https://image.tmdb.org/t/p/w500/6d5XOczc226jECq0LIX0siKtgHR.jpg",
-    trailerId: "A0oNrgumrlE",
-  },
-  {
-    title: "Moonlight",
-    awardYear: 2017,
-    award: "Best Picture",
-    poster: "https://filmartgallery.com/cdn/shop/files/Moonlight-Vintage-Movie-Poster-Original_1200x.jpg?v=1771967190",
-    trailerId: "9NJj12tJzqc",
-  },
-  {
-    title: "Parasite",
-    awardYear: 2020,
-    award: "Best Picture",
-    poster: "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg",
-    trailerId: "isOGD_7hNIY",
-  },
-  {
-    title: "Oppenheimer",
-    awardYear: 2024,
-    award: "Best Picture",
-    poster: "https://image.tmdb.org/t/p/w500/ptpr0kGAckfQkJeJIt8st5dglvd.jpg",
-    trailerId: "bK6ldnjE3Y0",
-  },
-  {
-    title: "One Battle After Another",
-    awardYear: 2026,
-    award: "Best Picture",
-    poster: "https://image.tmdb.org/t/p/w500/m1jFoahEbeQXtx4zArT2FKdbNIj.jpg",
-    trailerId: "kQUPdVxZNPk",
-  },
+export const movies = [
+	{
+		title: "Dead Poets Society",
+		releaseYear: 1989,
+		poster:
+			"https://upload.wikimedia.org/wikipedia/en/8/86/Dead_poets_society.png",
+		trailerId: "aQwVQzs9pHk",
+	},
+	{
+		title: "The Silence of the Lambs",
+		releaseYear: 1991,
+		poster: "https://image.tmdb.org/t/p/w500/uS9m8OBk1A8eM9I042bx8XXpqAq.jpg",
+		trailerId: "6iB21hsprAQ",
+	},
+	{
+		title: "Before Sunrise",
+		releaseYear: 1995,
+		poster:
+			"https://upload.wikimedia.org/wikipedia/en/d/da/Before_Sunrise_poster.jpg",
+		trailerId: "6MUcuqbGTxc",
+	},
+	{
+		title: "Taste of Cherry",
+		releaseYear: 1997,
+		poster:
+			"https://upload.wikimedia.org/wikipedia/en/f/fc/Tasteofcherryposter.jpg",
+		trailerId: "H2NhAmDv1dw",
+	},
+	{
+		title: "Eternal Sunshine of the Spotless Mind",
+		releaseYear: 2004,
+		poster:
+			"https://upload.wikimedia.org/wikipedia/en/a/a4/Eternal_Sunshine_of_the_Spotless_Mind.png",
+		trailerId: "1GiLxkDK8sI",
+	},
+	{
+		title: "(500) Days of Summer",
+		releaseYear: 2009,
+		poster:
+			"https://upload.wikimedia.org/wikipedia/en/d/d1/Five_hundred_days_of_summer.jpg",
+		trailerId: "PsD0NpFSADM",
+	},
+	{
+		title: "Black Swan",
+		releaseYear: 2010,
+		poster:
+			"https://upload.wikimedia.org/wikipedia/en/6/68/Black_Swan_poster.jpg",
+		trailerId: "5jaI1XOB-bs",
+	},
+	{
+		title: "About Time",
+		releaseYear: 2013,
+		poster:
+			"https://upload.wikimedia.org/wikipedia/en/7/7c/About_Time_%282013_film%29_Poster.jpg",
+		trailerId: "7OIFdWk83no",
+	},
+	{
+		title: "La La Land",
+		releaseYear: 2016,
+		poster:
+			"https://upload.wikimedia.org/wikipedia/en/a/ab/La_La_Land_%28film%29.png",
+		trailerId: "0pdqf4P9MB8",
+	},
+	{
+		title: "The Drama",
+		releaseYear: 2026,
+		poster:
+			"https://upload.wikimedia.org/wikipedia/en/5/54/The_Drama_%28film%29_poster.jpg",
+		trailerId: "6zmKcUa4Xxk",
+	},
 ] satisfies [Movie, ...Movie[]];
 
 export const cinemaMedia = {
-  edit: "/media/reel.mp4",
-  poster: "/media/reel-poster.jpg",
-  theaterImage: "/media/theater.png",
-  theaterModel: "/models/private-home-cinema-textured.glb",
+	edit: "/media/reel.mp4",
+	poster: "/media/reel-poster.jpg",
+	theaterImage: "/media/theater.png",
+	theaterModel: "/models/private-home-cinema-textured.glb",
 };

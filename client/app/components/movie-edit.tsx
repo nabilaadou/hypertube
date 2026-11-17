@@ -7,7 +7,7 @@ import { useLenis } from "lenis/react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { type CSSProperties, type PointerEvent, useCallback, useEffect, useRef, useState } from "react";
-import { bestPictureWinners, cinemaMedia, type Movie } from "../data/movies";
+import { movies, cinemaMedia, type Movie } from "../data/movies";
 import type { createCinemaPaperSurface, PaperPose } from "./cinema-paper-surface";
 import { projectVideo, type ScreenCorners } from "./cinema-projection";
 import { HypertubeStatement } from "./hypertube-statement";
@@ -18,12 +18,12 @@ import { useCinemaReveal } from "./use-cinema-reveal";
 
 const CinemaScene = dynamic(() => import("./cinema-scene"), { ssr: false });
 
-const featured = bestPictureWinners[0];
+const featured = movies[0];
 const handoffViewports = 1.8;
 const timelineExitViewports = 2.35;
 const quoteHoldViewports = 0.6;
 const filmViewports = 0.66;
-const lastFilm = bestPictureWinners.length - 1;
+const lastFilm = movies.length - 1;
 const timelineStart = handoffViewports;
 const timelineEnd = timelineStart + filmViewports * lastFilm;
 const paperLiftOff = 0.001;
@@ -102,7 +102,7 @@ export function MovieEdit() {
     top: Math.min(...wallPosterCorners.map(({ y }) => y)),
     bottom: Math.max(...wallPosterCorners.map(({ y }) => y)),
   };
-  const openTimelineYear = trailer?.fromTimeline ? trailer.movie.awardYear : undefined;
+  const openTimelineYear = trailer?.fromTimeline ? trailer.movie.releaseYear : undefined;
 
   function trailerSide(year: number) {
     if (openTimelineYear === undefined) return undefined;
@@ -421,21 +421,21 @@ export function MovieEdit() {
           {phase === "cinema" && <Noise animated={timelineVisible && !timelineLeaving} />}
           <div className="cinema-timeline-grid absolute inset-0" aria-hidden="true" />
           <h2 id="timeline-title" className="cinema-timeline-heading cinema-timeline-label">
-            {featured.award}
+            Selected Films
           </h2>
-          <nav aria-label="Best Picture years" className="cinema-year-track cinema-timeline-label" inert={!timelineVisible || timelineLeaving}>
-            {bestPictureWinners.map((film, index) => (
+          <nav aria-label="Movie release years" className="cinema-year-track cinema-timeline-label" inert={!timelineVisible || timelineLeaving}>
+            {movies.map((film, index) => (
               <button
-                key={film.awardYear}
+                key={film.releaseYear}
                 type="button"
                 aria-current={filmIndex === index ? "true" : undefined}
-                aria-label={`${film.awardYear}, ${film.title}`}
-                data-trailer-side={trailerSide(film.awardYear)}
+                aria-label={`${film.releaseYear}, ${film.title}`}
+                data-trailer-side={trailerSide(film.releaseYear)}
                 tabIndex={Math.abs(filmIndex - index) <= 1 ? 0 : -1}
                 onClick={() => goToFilm(index)}
                 style={{ "--index": index } as CSSProperties}
               >
-                <span>{film.awardYear}</span>
+                <span>{film.releaseYear}</span>
               </button>
             ))}
           </nav>
@@ -457,10 +457,10 @@ export function MovieEdit() {
           />
         )}
 
-        {phase === "cinema" && bestPictureWinners.map((movie, index) => (
+        {phase === "cinema" && movies.map((movie, index) => (
           <figure
-            key={movie.awardYear}
-            data-trailer-side={trailerSide(movie.awardYear)}
+            key={movie.releaseYear}
+            data-trailer-side={trailerSide(movie.releaseYear)}
             className={`cinema-track-card ${index === 0 ? "cinema-featured-poster" : ""}`}
             style={{
               "--index": index,

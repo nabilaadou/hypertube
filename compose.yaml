@@ -1,4 +1,16 @@
 services:
+  assets:
+    image: node:24-bookworm-slim
+    init: true
+    environment:
+      ASSET_BASE_URL: ${ASSET_BASE_URL:-https://pub-4f3ad1a134a6467da45e599dfe8f48fd.r2.dev}
+      ASSET_DIRECTORY: /assets
+    volumes:
+      - ./client/scripts/fetch-assets.mjs:/setup/fetch-assets.mjs:ro
+      - landing-media:/assets/media
+      - landing-models:/assets/models
+    command: ["node", "/setup/fetch-assets.mjs"]
+
   postgres:
     image: postgres:17-alpine
     environment:
@@ -50,6 +62,11 @@ services:
     depends_on:
       server:
         condition: service_healthy
+      assets:
+        condition: service_completed_successfully
+    volumes:
+      - landing-media:/app/public/media:ro
+      - landing-models:/app/public/models:ro
     develop:
       watch:
         - action: sync
@@ -59,6 +76,8 @@ services:
             - Dockerfile
             - package.json
             - package-lock.json
+            - public/media
+            - public/models
         - action: rebuild
           path: ./client/package.json
         - action: rebuild
@@ -66,3 +85,5 @@ services:
 
 volumes:
   postgres-data:
+  landing-media:
+  landing-models:

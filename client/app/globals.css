@@ -555,6 +555,70 @@ html::-webkit-scrollbar {
   }
 }
 
+.trailer-player {
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.trailer-player-video {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+}
+
+.trailer-player-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  color: var(--color-paper);
+}
+
+.trailer-player-controls button {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.trailer-player-controls button:hover,
+.trailer-player-controls button:focus-visible {
+  opacity: 1;
+}
+
+.trailer-player-controls button:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+.trailer-player-controls input {
+  width: 100%;
+  height: 2px;
+  accent-color: var(--color-paper);
+  cursor: pointer;
+}
+
+.trailer-player:fullscreen {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.trailer-player:fullscreen .trailer-player-video {
+  height: auto;
+  flex: 1;
+}
+
+.trailer-player:fullscreen .trailer-player-controls {
+  padding: 0.5rem 1rem;
+}
+
 .cinema-control-icon {
   position: relative;
   width: 20px;

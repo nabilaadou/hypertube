@@ -2,8 +2,9 @@
 
 import gsap from "gsap";
 import Image from "next/image";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { Movie } from "../data/movies";
+import { TrailerPlayer } from "./trailer-player";
 
 type TrailerDialogProps = {
   movie: Movie;
@@ -20,7 +21,6 @@ export function TrailerDialog({ movie, origin, onClose }: TrailerDialogProps) {
   const scrimRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<gsap.core.Timeline | null>(null);
   const openingViewport = useRef({ width: 0, height: 0 });
-  const [unavailable, setUnavailable] = useState(false);
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
@@ -95,18 +95,10 @@ export function TrailerDialog({ movie, origin, onClose }: TrailerDialogProps) {
               type="button"
               aria-label="Close trailer"
               onClick={dismiss}
-              className="pointer-events-auto absolute top-2 right-2 grid size-10 cursor-pointer place-items-center rounded-full bg-black/80 text-2xl leading-none hover:bg-black"
+              className="pointer-events-auto absolute right-0 bottom-full grid size-10 cursor-pointer place-items-center text-xl leading-none opacity-70 hover:opacity-100"
             >
               <span aria-hidden="true">×</span>
             </button>
-            <a
-              href={`https://www.youtube.com/watch?v=${movie.trailerId}`}
-              target="_blank"
-              rel="noreferrer"
-              className="pointer-events-auto absolute top-full right-0 mt-2 whitespace-nowrap rounded bg-black/80 px-2 py-1 text-xs underline"
-            >
-              Watch trailer on YouTube
-            </a>
           </div>
           <div
             ref={posterRef}
@@ -124,21 +116,8 @@ export function TrailerDialog({ movie, origin, onClose }: TrailerDialogProps) {
               className="object-fill"
             />
           </div>
-          <div ref={videoRef} className="absolute inset-0 overflow-hidden rounded-card bg-black shadow-2xl backface-hidden">
-            {unavailable ? (
-              <p role="status" className="grid size-full place-items-center px-12 text-center">
-                The embedded trailer could not load. Open it on YouTube below.
-              </p>
-            ) : (
-              <iframe
-                title={`${movie.title} trailer`}
-                src={`https://www.youtube-nocookie.com/embed/${movie.trailerId}?rel=0&autoplay=1`}
-                onError={() => setUnavailable(true)}
-                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                referrerPolicy="strict-origin-when-cross-origin"
-                className="block size-full"
-              />
-            )}
+          <div ref={videoRef} className="absolute inset-0 bg-black shadow-2xl backface-hidden">
+            <TrailerPlayer trailerId={movie.trailerId} title={movie.title} />
           </div>
         </div>
       </div>

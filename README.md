@@ -28,14 +28,6 @@ Press Ctrl+C to stop the services. Run `make down` to remove the containers and 
 
 Install JDK 21 or newer, Maven 3.9 or newer, Node.js 24 or newer, and npm.
 
-From the repository root, copy the local configuration template.
-
-```sh
-cp client/.env.example client/.env
-```
-
-Set `BACKEND_URL=http://localhost:8080` in `client/.env`. Next.js reads this value on the server. Keep local credentials in ignored `.env` files and commit only variable names and placeholders in `.env.example`.
-
 Start the API in one terminal.
 
 ```sh
@@ -48,10 +40,28 @@ Start Next.js in a second terminal.
 ```sh
 cd client
 npm ci
+npm run prepare:media
 npm run dev
 ```
 
-Open `http://localhost:3000`. The home page reports whether it can reach the API at `GET /api/health`. If `BACKEND_URL` is missing or invalid, the page tells you how to configure it. Restart Next.js after changing `client/.env`.
+Open `http://localhost:3000` to view the landing page.
+
+## Prepare the landing page media
+
+Run `npm run prepare:media` from `client/` before starting local development or building the Docker client image. It copies the tracked theater GLB from `models/` to `client/public/models/`. It also copies `reel.mp4`, `reel-poster.jpg`, and `theater.png` from the local `design-assets/` folder to `client/public/media/` when available.
+
+The public copies are ignored by Git. A fresh clone includes the theater model. Supply the movie edit and preview images locally in `design-assets/`, then rerun the command. Missing source files produce a message and leave any existing public copy available. The video preview displays an unavailable message when the edit cannot load.
+
+The media script prefers `design-assets/reel-with-sound.mp4` when present. To prepare it from the supplied two-track reel, run this command from the repository root with FFmpeg installed.
+
+```sh
+ffmpeg -i design-assets/reel.mp4 -map 0:v:0 -map 0:a:1 -c copy -movflags +faststart design-assets/reel-with-sound.mp4
+(cd client && npm run prepare:media)
+```
+
+The command copies the original video and its audible second audio track. For a reel that already has a single audible track, supply it as `design-assets/reel.mp4`.
+
+The served model URL is `/models/private-home-cinema-textured.glb`. The edit and image URLs begin with `/media/`. The media paths and poster lineup are in `client/app/data/movies.ts`.
 
 ## Verify changes
 
@@ -62,4 +72,4 @@ From the repository root, run the API smoke test and check the frontend.
 (cd client && npm ci && npm run lint && npm run build)
 ```
 
-With both apps running, `curl -fsS http://localhost:8080/api/health` should return `{"status":"UP"}` and the home page should show “API is online.” To check the configuration diagnostic, clear `BACKEND_URL` in `client/.env`, restart Next.js, and reload the page.
+With the API running, `curl -fsS http://localhost:8080/api/health` should return `{"status":"UP"}`.

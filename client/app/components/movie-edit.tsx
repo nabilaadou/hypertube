@@ -92,6 +92,7 @@ export function MovieEdit() {
   const [trailer, setTrailer] = useState<TrailerSelection | null>(null);
   const trailerTrigger = useRef<HTMLButtonElement | null>(null);
   const resumeEdit = useRef(false);
+  const pendingSound = useRef(false);
   const [playback, setPlayback] = useState<Playback>("paused");
   const [muted, setMuted] = useState(true);
   const [lightsOn, setLightsOn] = useState(false);
@@ -300,12 +301,46 @@ export function MovieEdit() {
     if (!video) return;
 
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (!motion.matches) void video.play().catch(() => {});
+    let active = true;
+    video.volume = 0.65;
+    video.muted = false;
+    if (!motion.matches) {
+      void video.play().catch(() => {
+        if (!active) return;
+        pendingSound.current = true;
+        video.muted = true;
+        void video.play().catch(() => {});
+      });
+    }
+
+    const enablePendingSound = () => {
+      if (!pendingSound.current) return;
+      const wasPlaying = !video.paused;
+      video.muted = false;
+      if (!wasPlaying) {
+        pendingSound.current = false;
+        return;
+      }
+      void video.play().then(() => {
+        if (active) pendingSound.current = false;
+      }).catch(() => {
+        if (!active || !pendingSound.current) return;
+        video.muted = true;
+        void video.play().catch(() => {});
+      });
+    };
+    window.addEventListener("click", enablePendingSound);
+    window.addEventListener("wheel", enablePendingSound, { passive: true });
     function pauseForReducedMotion(event: MediaQueryListEvent) {
       if (event.matches) videoRef.current?.pause();
     }
     motion.addEventListener("change", pauseForReducedMotion);
-    return () => motion.removeEventListener("change", pauseForReducedMotion);
+    return () => {
+      active = false;
+      window.removeEventListener("click", enablePendingSound);
+      window.removeEventListener("wheel", enablePendingSound);
+      motion.removeEventListener("change", pauseForReducedMotion);
+    };
   }, []);
 
   useEffect(() => {
@@ -351,7 +386,10 @@ export function MovieEdit() {
 
   function toggleSound() {
     const video = videoRef.current;
-    if (video) video.muted = !video.muted;
+    if (video) {
+      pendingSound.current = false;
+      video.muted = !video.muted;
+    }
   }
 
   const playbackAction = playback === "playing" ? "Pause" : "Play";

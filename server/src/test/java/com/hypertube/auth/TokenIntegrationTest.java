@@ -107,7 +107,7 @@ class TokenIntegrationTest {
         mvc.perform(post("/api/auth/login-handoffs/complete").param("code", code)
                         .cookie(new Cookie("hypertube_login_proof", "b".repeat(64))))
                 .andExpect(status().isUnauthorized()).andExpect(cookie().doesNotExist(AuthCookies.ACCESS));
-        from(mvc.perform(complete(code)).andExpect(status().isOk()).andReturn(), null);
+        from(mvc.perform(complete(code)).andExpect(status().isOk()).andReturn());
         mvc.perform(complete(code)).andExpect(status().isUnauthorized());
     }
 
@@ -163,7 +163,6 @@ class TokenIntegrationTest {
         Credentials stolen = login();
         Credentials other = login();
         Credentials current = rotate(rotate(stolen));
-        clock.advance(Duration.ofSeconds(6));
         refresh(stolen.refresh()).andExpect(status().isUnauthorized());
         me(current).andExpect(status().isUnauthorized());
         refresh(current.refresh()).andExpect(status().isUnauthorized());
@@ -190,7 +189,7 @@ class TokenIntegrationTest {
                     .containsExactly(200, 401);
             var winners = results.stream().filter(result -> result.getResponse().getStatus() == 200).toList();
             assertThat(winners).hasSize(1);
-            Credentials winner = from(winners.getFirst(), null);
+            Credentials winner = from(winners.getFirst());
             assertThat(jdbc.queryForObject("SELECT count(*) FROM refresh_token_history", Integer.class)).isEqualTo(1);
             assertThat(revoked(original.id())).isTrue();
             me(winner).andExpect(status().isUnauthorized());
@@ -294,7 +293,7 @@ class TokenIntegrationTest {
     }
 
     private Credentials login() throws Exception {
-        return from(mvc.perform(complete(createHandoff("session-test"))).andExpect(status().isOk()).andReturn(), null);
+        return from(mvc.perform(complete(createHandoff("session-test"))).andExpect(status().isOk()).andReturn());
     }
     private String createHandoff(String account) throws Exception {
         return mvc.perform(post("/internal/auth/login-handoffs").header("Authorization", "Bearer " + SECRET)
@@ -306,7 +305,7 @@ class TokenIntegrationTest {
     private MockHttpServletRequestBuilder complete(String code) {
         return post("/api/auth/login-handoffs/complete").param("code", code).cookie(new Cookie("hypertube_login_proof", PROOF));
     }
-    private Credentials from(MvcResult result, Cookie fallback) throws Exception {
+    private Credentials from(MvcResult result) throws Exception {
         assertThat(JsonPath.<java.util.Map<String, Object>>read(result.getResponse().getContentAsString(), "$")).doesNotContainKeys("accessToken", "refreshToken", "tokenType");
         Cookie accessCookie = result.getResponse().getCookie(AuthCookies.ACCESS);
         assertThat(accessCookie).isNotNull();
@@ -317,9 +316,10 @@ class TokenIntegrationTest {
         String access = accessCookie.getValue();
         var claims = jwt.verify(access).orElseThrow();
         Cookie refresh = result.getResponse().getCookie(AuthCookies.REFRESH);
-        return new Credentials(access, refresh == null ? fallback : refresh, claims.userId(), claims.sessionId());
+        assertThat(refresh).isNotNull();
+        return new Credentials(access, refresh, claims.userId(), claims.sessionId());
     }
-    private Credentials rotate(Credentials old) throws Exception { return from(refresh(old.refresh()).andExpect(status().isOk()).andReturn(), old.refresh()); }
+    private Credentials rotate(Credentials old) throws Exception { return from(refresh(old.refresh()).andExpect(status().isOk()).andReturn()); }
     private ResultActions refresh(Cookie cookie) throws Exception { return mvc.perform(withCsrf("/api/auth/refresh", cookie)); }
     private ResultActions me(Credentials device) throws Exception { return mvc.perform(get("/api/auth/me").cookie(new Cookie(AuthCookies.ACCESS, device.access()))); }
     private MockHttpServletRequestBuilder withCsrf(String path, Cookie... cookies) throws Exception {

@@ -19,8 +19,8 @@ public class SessionCleanupService {
         this.clock = clock;
     }
 
-    @Scheduled(fixedDelayString = "${hypertube.auth.cleanup-interval:PT15M}",
-            initialDelayString = "${hypertube.auth.cleanup-interval:PT15M}")
+    @Scheduled(fixedDelayString = "${hypertube.auth.cleanup-interval}",
+            initialDelayString = "${hypertube.auth.cleanup-interval}")
     @Transactional
     public void cleanup() {
         var now = clock.instant();

@@ -20,7 +20,7 @@ public class AuthExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(AuthException.class)
     ResponseEntity<ProblemDetail> authFailure(AuthException exception) {
         return problem(HttpStatus.UNAUTHORIZED, exception.getCode(), exception.getMessage(),
-                exception.shouldClearRefreshCookie() ? cookies.clear() : new HttpHeaders());
+                exception.shouldClearAuthCookies() ? cookies.clear() : new HttpHeaders());
     }
 
     @ExceptionHandler(AuthenticationException.class)

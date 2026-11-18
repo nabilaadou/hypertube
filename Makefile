@@ -1,4 +1,4 @@
-.PHONY: up down clean migration
+.PHONY: up down clean
 
 up:
 	docker compose up --build --watch
@@ -8,6 +8,3 @@ down:
 
 clean:
 	docker compose down --volumes --remove-orphans --rmi local
-
-migration:
-	bash scripts/generate-migration.sh "$(NAME)"

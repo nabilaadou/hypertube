@@ -3,7 +3,7 @@ package com.hypertube.auth.security;
 import java.io.IOException;
 import java.util.List;
 
-import com.hypertube.auth.service.SessionService;
+import com.hypertube.auth.service.TokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,18 +15,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.WebUtils;
 
 public class AccessTokenAuthenticationFilter extends OncePerRequestFilter {
-    private final SessionService sessions;
+    private final TokenService tokens;
 
-    public AccessTokenAuthenticationFilter(SessionService sessions) {
-        this.sessions = sessions;
+    public AccessTokenAuthenticationFilter(TokenService tokens) {
+        this.tokens = tokens;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        var cookie = WebUtils.getCookie(request, SessionCookies.ACCESS);
+        var cookie = WebUtils.getCookie(request, AuthCookies.ACCESS);
         if (cookie != null) {
-            sessions.authenticate(cookie.getValue()).ifPresent(user -> {
+            tokens.authenticate(cookie.getValue()).ifPresent(user -> {
                 var context = SecurityContextHolder.createEmptyContext();
                 context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
                         user, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));

@@ -7,10 +7,10 @@ import java.util.UUID;
 import com.hypertube.auth.schema.OAuthIdentity;
 import com.hypertube.auth.schema.UserProfile;
 import com.hypertube.auth.service.AuthService;
-import com.hypertube.auth.service.SessionService;
+import com.hypertube.auth.service.TokenService;
 import com.hypertube.auth.security.SecurityConfiguration;
-import com.hypertube.auth.security.SessionCookies;
-import com.hypertube.auth.security.SessionTokens;
+import com.hypertube.auth.security.AuthCookies;
+import com.hypertube.auth.security.AuthTokens;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -38,8 +38,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = AuthController.class, properties = "hypertube.auth.session.secure-cookies=true")
-@Import({SecurityConfiguration.class, SessionCookies.class})
+@WebMvcTest(controllers = AuthController.class, properties = "hypertube.auth.tokens.secure-cookies=true")
+@Import({SecurityConfiguration.class, AuthCookies.class})
 class AuthControllerTest {
     private static final UUID CODE = UUID.fromString("7d87e5dc-cf71-421f-9e7c-853155898d67");
     private static final String PROOF = "a".repeat(64);
@@ -61,11 +61,11 @@ class AuthControllerTest {
     private AuthService auth;
 
     @MockitoBean
-    private SessionService sessions;
+    private TokenService sessions;
 
     private static final UserProfile USER = new UserProfile(
             17L, "google", "provider-user-123", "Test User", "test@example.com");
-    private static final SessionTokens TOKENS = new SessionTokens(USER, "a".repeat(43), "b".repeat(43),
+    private static final AuthTokens TOKENS = new AuthTokens(USER, "a".repeat(43), "b".repeat(43),
             Duration.ofMinutes(15), Duration.ofDays(30));
 
     @Test
@@ -106,7 +106,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void completesBrowserPostAndIssuesSessionCookies() throws Exception {
+    void completesBrowserPostAndIssuesAuthCookies() throws Exception {
         when(sessions.completeLogin(CODE, PROOF)).thenReturn(Optional.of(TOKENS));
 
         var result = mvc.perform(post("/api/auth/login-handoffs/complete")
@@ -122,20 +122,20 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.displayName").value("Test User"))
                 .andExpect(jsonPath("$.email").value("test@example.com"))
                 .andExpect(jsonPath("$.accessToken").doesNotExist())
-                .andExpect(cookie().value(SessionCookies.ACCESS, TOKENS.accessToken()))
-                .andExpect(cookie().httpOnly(SessionCookies.ACCESS, true))
-                .andExpect(cookie().secure(SessionCookies.ACCESS, true))
-                .andExpect(cookie().path(SessionCookies.ACCESS, "/"))
-                .andExpect(cookie().maxAge(SessionCookies.ACCESS, 900))
-                .andExpect(cookie().value(SessionCookies.REFRESH, TOKENS.refreshToken()))
-                .andExpect(cookie().httpOnly(SessionCookies.REFRESH, true))
-                .andExpect(cookie().secure(SessionCookies.REFRESH, true))
-                .andExpect(cookie().path(SessionCookies.REFRESH, "/api/auth"))
+                .andExpect(cookie().value(AuthCookies.ACCESS, TOKENS.accessToken()))
+                .andExpect(cookie().httpOnly(AuthCookies.ACCESS, true))
+                .andExpect(cookie().secure(AuthCookies.ACCESS, true))
+                .andExpect(cookie().path(AuthCookies.ACCESS, "/"))
+                .andExpect(cookie().maxAge(AuthCookies.ACCESS, 900))
+                .andExpect(cookie().value(AuthCookies.REFRESH, TOKENS.refreshToken()))
+                .andExpect(cookie().httpOnly(AuthCookies.REFRESH, true))
+                .andExpect(cookie().secure(AuthCookies.REFRESH, true))
+                .andExpect(cookie().path(AuthCookies.REFRESH, "/api/auth"))
                 .andExpect(cookie().maxAge("hypertube_login_proof", 0))
                 .andReturn();
 
         assertNull(result.getRequest().getSession(false));
-        assertEquals("Lax", result.getResponse().getCookie(SessionCookies.ACCESS).getAttribute("SameSite"));
+        assertEquals("Lax", result.getResponse().getCookie(AuthCookies.ACCESS).getAttribute("SameSite"));
         assertTrue(result.getResponse().getHeaders("Set-Cookie").stream().noneMatch(value -> value.contains("JSESSIONID")));
     }
 
@@ -147,7 +147,7 @@ class AuthControllerTest {
                         .param("code", CODE.toString())
                         .cookie(new Cookie("hypertube_login_proof", PROOF)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(cookie().doesNotExist(SessionCookies.ACCESS))
+                .andExpect(cookie().doesNotExist(AuthCookies.ACCESS))
                 .andExpect(header().string("Cache-Control", "no-store"));
     }
 
@@ -163,10 +163,10 @@ class AuthControllerTest {
     void refreshesUsingTheRefreshCookieAndCsrfToken() throws Exception {
         when(sessions.refresh("old-refresh")).thenReturn(Optional.of(TOKENS));
         mvc.perform(postWithCsrf("/api/auth/refresh")
-                        .cookie(new Cookie(SessionCookies.REFRESH, "old-refresh")))
+                        .cookie(new Cookie(AuthCookies.REFRESH, "old-refresh")))
                 .andExpect(status().isOk())
-                .andExpect(cookie().value(SessionCookies.ACCESS, TOKENS.accessToken()))
-                .andExpect(cookie().value(SessionCookies.REFRESH, TOKENS.refreshToken()))
+                .andExpect(cookie().value(AuthCookies.ACCESS, TOKENS.accessToken()))
+                .andExpect(cookie().value(AuthCookies.REFRESH, TOKENS.refreshToken()))
                 .andExpect(jsonPath("$.id").value(17));
     }
 
@@ -174,18 +174,18 @@ class AuthControllerTest {
     void clearsCookiesWhenRefreshIsInvalid() throws Exception {
         mvc.perform(postWithCsrf("/api/auth/refresh"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(cookie().maxAge(SessionCookies.ACCESS, 0))
-                .andExpect(cookie().maxAge(SessionCookies.REFRESH, 0));
+                .andExpect(cookie().maxAge(AuthCookies.ACCESS, 0))
+                .andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
     }
 
     @Test
     void logsOutAndClearsBothCookies() throws Exception {
         mvc.perform(postWithCsrf("/api/auth/logout")
-                        .cookie(new Cookie(SessionCookies.ACCESS, "access"), new Cookie(SessionCookies.REFRESH, "refresh")))
+                        .cookie(new Cookie(AuthCookies.ACCESS, "access"), new Cookie(AuthCookies.REFRESH, "refresh")))
                 .andExpect(status().isNoContent())
                 .andExpect(header().string("Cache-Control", "no-store"))
-                .andExpect(cookie().maxAge(SessionCookies.ACCESS, 0))
-                .andExpect(cookie().maxAge(SessionCookies.REFRESH, 0));
+                .andExpect(cookie().maxAge(AuthCookies.ACCESS, 0))
+                .andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
         verify(sessions).logout("access", "refresh");
     }
 
@@ -209,14 +209,14 @@ class AuthControllerTest {
     @Test
     void authenticatesAccessCookieForCurrentUser() throws Exception {
         when(sessions.authenticate(TOKENS.accessToken())).thenReturn(Optional.of(USER));
-        mvc.perform(get("/api/auth/me").cookie(new Cookie(SessionCookies.ACCESS, TOKENS.accessToken())))
+        mvc.perform(get("/api/auth/me").cookie(new Cookie(AuthCookies.ACCESS, TOKENS.accessToken())))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(17));
     }
 
     @Test
     void rejectsMissingOrInvalidAccessCookies() throws Exception {
         mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/auth/me").cookie(new Cookie(SessionCookies.ACCESS, "invalid")))
+        mvc.perform(get("/api/auth/me").cookie(new Cookie(AuthCookies.ACCESS, "invalid")))
                 .andExpect(status().isUnauthorized());
     }
 

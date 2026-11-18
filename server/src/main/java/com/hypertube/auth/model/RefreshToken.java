@@ -18,17 +18,17 @@ public class RefreshToken {
     @Column(name = "token_hash", length = 64)
     private String tokenHash;
 
-    @Column(name = "session_id", nullable = false)
-    private UUID sessionId;
+    @Column(name = "grant_id", nullable = false)
+    private UUID grantId;
 
     @Column(name = "used_at")
     private Instant usedAt;
 
     protected RefreshToken() {}
 
-    public RefreshToken(String tokenHash, UUID sessionId) {
+    public RefreshToken(String tokenHash, UUID grantId) {
         this.tokenHash = tokenHash;
-        this.sessionId = sessionId;
+        this.grantId = grantId;
     }
 
     public boolean isUsed() { return usedAt != null; }

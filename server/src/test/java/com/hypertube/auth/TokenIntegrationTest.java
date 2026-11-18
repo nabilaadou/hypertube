@@ -1,12 +1,14 @@
 package com.hypertube.auth;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import com.hypertube.auth.security.SessionCookies;
+import com.hypertube.auth.security.AuthCookies;
+import com.hypertube.auth.security.JwtService;
 import com.hypertube.auth.security.TokenValues;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.ServletException;
@@ -37,12 +39,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.username=${TEST_DATABASE_USER:postgres}",
         "spring.datasource.password=${TEST_DATABASE_PASSWORD:}",
         "hypertube.auth.handoff-secret=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        "hypertube.auth.session.access-ttl=15m",
-        "hypertube.auth.session.refresh-ttl=30d",
-        "hypertube.auth.session.secure-cookies=false"
+        "hypertube.auth.jwt.secret=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZg==",
+        "hypertube.auth.tokens.access-ttl=15m",
+        "hypertube.auth.tokens.refresh-ttl=30d",
+        "hypertube.auth.tokens.secure-cookies=false"
 })
 @AutoConfigureMockMvc
-class SessionIntegrationTest {
+class TokenIntegrationTest {
     private static final String SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String PROOF = "a".repeat(64);
 
@@ -52,19 +55,26 @@ class SessionIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private JwtService jwt;
+
     @BeforeEach
     void clearTestDatabase() {
         jdbc.update("DELETE FROM users");
         jdbc.update("DELETE FROM oauth_login_handoffs");
+        jdbc.update("DELETE FROM auth_revoked_access_tokens");
     }
 
     @Test
-    void createsHashedSessionAndAuthenticatesAccessCookie() throws Exception {
+    void createsSignedAccessJwtAndHashedRefreshToken() throws Exception {
         BrowserSession session = login();
         mvc.perform(get("/api/auth/me").cookie(session.access()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.providerUserId").value("session-test"));
-        assertThat(jdbc.queryForObject("SELECT access_token_hash FROM auth_sessions", String.class))
-                .isEqualTo(TokenValues.hash(session.access().getValue()));
+        var claims = jwt.verify(session.access().getValue()).orElseThrow();
+        assertThat(session.access().getValue().split("\\.")).hasSize(3);
+        assertThat(jdbc.queryForObject("SELECT access_token_id FROM auth_refresh_grants", UUID.class))
+                .isEqualTo(claims.tokenId());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_name = 'auth_refresh_grants' AND column_name = 'access_token_hash'", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT token_hash FROM auth_refresh_tokens", String.class))
                 .isEqualTo(TokenValues.hash(session.refresh().getValue()));
         assertThat(session.access().isHttpOnly()).isTrue();
@@ -81,9 +91,31 @@ class SessionIntegrationTest {
         assertThat(rotated.refresh().getValue()).isNotEqualTo(original.refresh().getValue());
         mvc.perform(get("/api/auth/me").cookie(original.access())).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/auth/me").cookie(rotated.access())).andExpect(status().isOk());
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_sessions", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_refresh_grants", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_refresh_tokens WHERE used_at IS NOT NULL", Integer.class))
                 .isEqualTo(1);
+    }
+
+    @Test
+    void authenticatesJwtWithoutAStoredAccessSessionAndCanStillRevokeIt() throws Exception {
+        BrowserSession session = login();
+        jdbc.update("DELETE FROM auth_refresh_grants");
+        mvc.perform(get("/api/auth/me").cookie(session.access())).andExpect(status().isOk());
+        postWithCsrf("/api/auth/logout", session.access()).andExpect(status().isNoContent());
+        mvc.perform(get("/api/auth/me").cookie(session.access())).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void rejectsTamperedJwtAndOpaqueTokensAsAccessCredentials() throws Exception {
+        BrowserSession session = login();
+        String[] parts = session.access().getValue().split("\\.");
+        String tampered = parts[0] + "." + parts[1] + "." + (parts[2].startsWith("A") ? "B" : "A") + parts[2].substring(1);
+        mvc.perform(get("/api/auth/me").cookie(new Cookie(AuthCookies.ACCESS, tampered)))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(new Cookie(AuthCookies.ACCESS, TokenValues.generate())))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(new Cookie(AuthCookies.ACCESS, session.refresh().getValue())))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -94,14 +126,17 @@ class SessionIntegrationTest {
         postWithCsrf("/api/auth/refresh", original.refresh()).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/auth/me").cookie(rotated.access())).andExpect(status().isUnauthorized());
         postWithCsrf("/api/auth/refresh", rotated.refresh()).andExpect(status().isUnauthorized());
-        assertThat(jdbc.queryForObject("SELECT revoked_at IS NOT NULL FROM auth_sessions", Boolean.class)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT revoked_at IS NOT NULL FROM auth_refresh_grants", Boolean.class)).isTrue();
     }
 
     @Test
     void expiredAccessCanStillRefresh() throws Exception {
         BrowserSession session = login();
-        jdbc.update("UPDATE auth_sessions SET access_expires_at = now() - interval '1 second'");
-        mvc.perform(get("/api/auth/me").cookie(session.access())).andExpect(status().isUnauthorized());
+        var claims = jwt.verify(session.access().getValue()).orElseThrow();
+        Instant now = Instant.now();
+        String expired = jwt.issue(claims.userId(), claims.grantId(), claims.tokenId(), now.minusSeconds(60), now.minusSeconds(1));
+        mvc.perform(get("/api/auth/me").cookie(new Cookie(AuthCookies.ACCESS, expired)))
+                .andExpect(status().isUnauthorized());
         BrowserSession rotated = tokens(postWithCsrf("/api/auth/refresh", session.refresh())
                 .andExpect(status().isOk()).andReturn());
         mvc.perform(get("/api/auth/me").cookie(rotated.access())).andExpect(status().isOk());
@@ -110,37 +145,36 @@ class SessionIntegrationTest {
     @Test
     void expiredSessionCannotRefreshAndIsCleanedUpOnLogin() throws Exception {
         BrowserSession session = login();
-        jdbc.update("UPDATE auth_sessions SET access_expires_at = now() - interval '2 seconds', expires_at = now() - interval '1 second'");
+        jdbc.update("UPDATE auth_refresh_grants SET access_expires_at = now() - interval '2 seconds', expires_at = now() - interval '1 second'");
         postWithCsrf("/api/auth/refresh", session.refresh()).andExpect(status().isUnauthorized())
-                .andExpect(cookie().maxAge(SessionCookies.ACCESS, 0))
-                .andExpect(cookie().maxAge(SessionCookies.REFRESH, 0));
-        mvc.perform(get("/api/auth/me").cookie(session.access())).andExpect(status().isUnauthorized());
+                .andExpect(cookie().maxAge(AuthCookies.ACCESS, 0))
+                .andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
         login();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_sessions", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_refresh_grants", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_refresh_tokens", Integer.class)).isEqualTo(1);
     }
 
     @Test
     void refreshingDoesNotExtendAbsoluteSessionLifetime() throws Exception {
         BrowserSession session = login();
-        var expiry = jdbc.queryForObject("SELECT expires_at FROM auth_sessions", java.sql.Timestamp.class);
-        jdbc.update("UPDATE auth_sessions SET expires_at = now() + interval '10 seconds', access_expires_at = now()");
-        var shortenedExpiry = jdbc.queryForObject("SELECT expires_at FROM auth_sessions", java.sql.Timestamp.class);
+        var expiry = jdbc.queryForObject("SELECT expires_at FROM auth_refresh_grants", java.sql.Timestamp.class);
+        jdbc.update("UPDATE auth_refresh_grants SET expires_at = now() + interval '10 seconds', access_expires_at = now()");
+        var shortenedExpiry = jdbc.queryForObject("SELECT expires_at FROM auth_refresh_grants", java.sql.Timestamp.class);
         BrowserSession rotated = tokens(postWithCsrf("/api/auth/refresh", session.refresh())
                 .andExpect(status().isOk()).andReturn());
         assertThat(rotated.access().getMaxAge()).isBetween(1, 10);
         assertThat(rotated.refresh().getMaxAge()).isBetween(1, 10);
-        assertThat(jdbc.queryForObject("SELECT expires_at FROM auth_sessions", java.sql.Timestamp.class))
+        assertThat(jdbc.queryForObject("SELECT expires_at FROM auth_refresh_grants", java.sql.Timestamp.class))
                 .isEqualTo(shortenedExpiry).isBefore(expiry);
-        assertThat(jdbc.queryForObject("SELECT access_expires_at <= expires_at FROM auth_sessions", Boolean.class)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT access_expires_at <= expires_at FROM auth_refresh_grants", Boolean.class)).isTrue();
     }
 
     @Test
     void logoutRevokesTokensAndClearsCookiesIdempotently() throws Exception {
         BrowserSession session = login();
         postWithCsrf("/api/auth/logout", session.access(), session.refresh()).andExpect(status().isNoContent())
-                .andExpect(cookie().maxAge(SessionCookies.ACCESS, 0))
-                .andExpect(cookie().maxAge(SessionCookies.REFRESH, 0));
+                .andExpect(cookie().maxAge(AuthCookies.ACCESS, 0))
+                .andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
         mvc.perform(get("/api/auth/me").cookie(session.access())).andExpect(status().isUnauthorized());
         postWithCsrf("/api/auth/refresh", session.refresh()).andExpect(status().isUnauthorized());
         postWithCsrf("/api/auth/logout", session.access(), session.refresh()).andExpect(status().isNoContent());
@@ -168,28 +202,28 @@ class SessionIntegrationTest {
     void missingAndMalformedCredentialsCannotCreateSessions() throws Exception {
         mvc.perform(post("/api/auth/login-handoffs/complete").param("code", UUID.randomUUID().toString())
                         .cookie(new Cookie("hypertube_login_proof", PROOF)))
-                .andExpect(status().isUnauthorized()).andExpect(cookie().doesNotExist(SessionCookies.ACCESS));
+                .andExpect(status().isUnauthorized()).andExpect(cookie().doesNotExist(AuthCookies.ACCESS));
         postWithCsrf("/api/auth/refresh").andExpect(status().isUnauthorized());
-        postWithCsrf("/api/auth/refresh", new Cookie(SessionCookies.REFRESH, "invalid"))
+        postWithCsrf("/api/auth/refresh", new Cookie(AuthCookies.REFRESH, "invalid"))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_sessions", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_refresh_grants", Integer.class)).isZero();
     }
 
     @Test
     void sessionCreationFailureRollsBackHandoffConsumptionAndUserUpsert() throws Exception {
         String code = createHandoff();
-        jdbc.execute("ALTER TABLE auth_sessions ADD CONSTRAINT reject_test_sessions CHECK (false) NOT VALID");
+        jdbc.execute("ALTER TABLE auth_refresh_grants ADD CONSTRAINT reject_test_sessions CHECK (false) NOT VALID");
         try {
             assertThrows(ServletException.class, () -> complete(code));
         } finally {
-            jdbc.execute("ALTER TABLE auth_sessions DROP CONSTRAINT reject_test_sessions");
+            jdbc.execute("ALTER TABLE auth_refresh_grants DROP CONSTRAINT reject_test_sessions");
         }
         assertThat(jdbc.queryForObject("SELECT count(*) FROM oauth_login_handoffs", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users", Integer.class)).isZero();
         complete(code).andExpect(status().isOk());
         complete(code).andExpect(status().isUnauthorized());
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_sessions", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_refresh_grants", Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -248,8 +282,8 @@ class SessionIntegrationTest {
     }
 
     private BrowserSession tokens(MvcResult result) {
-        return new BrowserSession(result.getResponse().getCookie(SessionCookies.ACCESS),
-                result.getResponse().getCookie(SessionCookies.REFRESH));
+        return new BrowserSession(result.getResponse().getCookie(AuthCookies.ACCESS),
+                result.getResponse().getCookie(AuthCookies.REFRESH));
     }
 
     private ResultActions postWithCsrf(String path, Cookie... cookies) throws Exception {

@@ -7,16 +7,16 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 
 @Component
-public class SessionCookies {
+public class AuthCookies {
     public static final String ACCESS = "hypertube_access";
     public static final String REFRESH = "hypertube_refresh";
-    private final SessionProperties properties;
+    private final TokenProperties properties;
 
-    public SessionCookies(SessionProperties properties) {
+    public AuthCookies(TokenProperties properties) {
         this.properties = properties;
     }
 
-    public HttpHeaders issue(SessionTokens tokens) {
+    public HttpHeaders issue(AuthTokens tokens) {
         var headers = new HttpHeaders();
         headers.add(HttpHeaders.SET_COOKIE, cookie(ACCESS, tokens.accessToken(), "/", tokens.accessMaxAge()));
         headers.add(HttpHeaders.SET_COOKIE, cookie(REFRESH, tokens.refreshToken(), "/api/auth", tokens.refreshMaxAge()));

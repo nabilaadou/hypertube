@@ -4,10 +4,10 @@ import java.util.UUID;
 
 import com.hypertube.auth.schema.OAuthIdentity;
 import com.hypertube.auth.schema.UserProfile;
-import com.hypertube.auth.security.SessionCookies;
-import com.hypertube.auth.security.SessionTokens;
+import com.hypertube.auth.security.AuthCookies;
+import com.hypertube.auth.security.AuthTokens;
 import com.hypertube.auth.service.AuthService;
-import com.hypertube.auth.service.SessionService;
+import com.hypertube.auth.service.TokenService;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
@@ -26,12 +26,12 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 class AuthController {
     private final AuthService auth;
-    private final SessionService sessions;
-    private final SessionCookies cookies;
+    private final TokenService tokens;
+    private final AuthCookies cookies;
 
-    AuthController(AuthService auth, SessionService sessions, SessionCookies cookies) {
+    AuthController(AuthService auth, TokenService tokens, AuthCookies cookies) {
         this.auth = auth;
-        this.sessions = sessions;
+        this.tokens = tokens;
         this.cookies = cookies;
     }
 
@@ -53,24 +53,24 @@ class AuthController {
             @RequestParam UUID code,
             @CookieValue(value = "hypertube_login_proof", defaultValue = "") String proof)
     {
-        return sessions.completeLogin(code, proof).map(this::signedIn)
+        return tokens.completeLogin(code, proof).map(this::signedIn)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).cacheControl(CacheControl.noStore())
                         .header("Referrer-Policy", "no-referrer").build());
     }
 
     @PostMapping("/api/auth/refresh")
     ResponseEntity<UserProfile> refresh(
-            @CookieValue(value = SessionCookies.REFRESH, defaultValue = "") String refreshToken) {
-        return sessions.refresh(refreshToken).map(this::signedIn)
+            @CookieValue(value = AuthCookies.REFRESH, defaultValue = "") String refreshToken) {
+        return tokens.refresh(refreshToken).map(this::signedIn)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).cacheControl(CacheControl.noStore())
                         .headers(cookies.clear()).build());
     }
 
     @PostMapping("/api/auth/logout")
     ResponseEntity<Void> logout(
-            @CookieValue(value = SessionCookies.ACCESS, defaultValue = "") String accessToken,
-            @CookieValue(value = SessionCookies.REFRESH, defaultValue = "") String refreshToken) {
-        sessions.logout(accessToken, refreshToken);
+            @CookieValue(value = AuthCookies.ACCESS, defaultValue = "") String accessToken,
+            @CookieValue(value = AuthCookies.REFRESH, defaultValue = "") String refreshToken) {
+        tokens.logout(accessToken, refreshToken);
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).headers(cookies.clear()).build();
     }
 
@@ -84,7 +84,7 @@ class AuthController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(token);
     }
 
-    private ResponseEntity<UserProfile> signedIn(SessionTokens tokens) {
+    private ResponseEntity<UserProfile> signedIn(AuthTokens tokens) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).headers(cookies.issue(tokens))
                 .header("Referrer-Policy", "no-referrer").body(tokens.user());
     }

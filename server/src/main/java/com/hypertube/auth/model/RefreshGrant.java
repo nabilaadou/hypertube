@@ -9,12 +9,10 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "auth_sessions")
-public class AuthSession {
+@Table(name = "auth_refresh_grants")
+public class RefreshGrant {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -22,9 +20,8 @@ public class AuthSession {
     @Column(name = "user_id", nullable = false)
     private long userId;
 
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "access_token_hash", nullable = false, length = 64)
-    private String accessTokenHash;
+    @Column(name = "access_token_id", nullable = false)
+    private UUID accessTokenId;
 
     @Column(name = "access_expires_at", nullable = false)
     private Instant accessExpiresAt;
@@ -35,29 +32,27 @@ public class AuthSession {
     @Column(name = "revoked_at")
     private Instant revokedAt;
 
-    protected AuthSession() {}
+    protected RefreshGrant() {}
 
-    public AuthSession(long userId, String accessTokenHash, Instant accessExpiresAt, Instant expiresAt) {
+    public RefreshGrant(long userId, UUID accessTokenId, Instant accessExpiresAt, Instant expiresAt) {
         this.userId = userId;
-        this.accessTokenHash = accessTokenHash;
+        this.accessTokenId = accessTokenId;
         this.accessExpiresAt = accessExpiresAt;
         this.expiresAt = expiresAt;
     }
 
     public UUID getId() { return id; }
     public long getUserId() { return userId; }
+    public UUID getAccessTokenId() { return accessTokenId; }
+    public Instant getAccessExpiresAt() { return accessExpiresAt; }
     public Instant getExpiresAt() { return expiresAt; }
 
     public boolean isActive(Instant now) {
         return revokedAt == null && expiresAt.isAfter(now);
     }
 
-    public boolean acceptsAccessToken(Instant now) {
-        return isActive(now) && accessExpiresAt.isAfter(now);
-    }
-
-    public void rotateAccessToken(String hash, Instant expiresAt) {
-        this.accessTokenHash = hash;
+    public void rotateAccessToken(UUID tokenId, Instant expiresAt) {
+        this.accessTokenId = tokenId;
         this.accessExpiresAt = expiresAt;
     }
 

@@ -12,6 +12,6 @@ public interface RefreshTokenRepository extends Repository<RefreshToken, String>
     RefreshToken save(RefreshToken token);
     Optional<RefreshToken> findById(String hash);
 
-    @Query("select t.sessionId from RefreshToken t where t.tokenHash = :hash")
-    Optional<UUID> findSessionId(@Param("hash") String hash);
+    @Query("select t.grantId from RefreshToken t where t.tokenHash = :hash")
+    Optional<UUID> findGrantId(@Param("hash") String hash);
 }

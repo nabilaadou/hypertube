@@ -2,7 +2,7 @@ package com.hypertube.auth.security;
 
 import java.time.Clock;
 
-import com.hypertube.auth.service.SessionService;
+import com.hypertube.auth.service.TokenService;
 import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -18,15 +18,15 @@ import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(SessionProperties.class)
+@EnableConfigurationProperties({TokenProperties.class, JwtProperties.class})
 public class SecurityConfiguration {
     @Bean
-    Clock sessionClock() {
+    Clock tokenClock() {
         return Clock.systemUTC();
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, SessionService sessions, SessionProperties properties)
+    SecurityFilterChain securityFilterChain(HttpSecurity http, TokenService tokens, TokenProperties properties)
             throws Exception {
         var csrfTokens = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrfTokens.setCookieCustomizer(cookie -> cookie.path("/").sameSite("Lax")
@@ -47,7 +47,7 @@ public class SecurityConfiguration {
                                 "/api/auth/refresh", "/api/auth/logout").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-                .addFilterBefore(new AccessTokenAuthenticationFilter(sessions), AnonymousAuthenticationFilter.class)
+                .addFilterBefore(new AccessTokenAuthenticationFilter(tokens), AnonymousAuthenticationFilter.class)
                 .build();
     }
 }

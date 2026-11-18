@@ -2,7 +2,6 @@ package com.hypertube.auth.model;
 
 import java.time.Instant;
 import java.util.UUID;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -18,53 +17,39 @@ public class UserSession {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
     @Column(name = "user_id", nullable = false)
     private long userId;
+
     @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "refresh_token_hash", nullable = false, length = 64)
     private String refreshTokenHash;
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "previous_token_hash", length = 64)
-    private String previousTokenHash;
-    @Column(name = "previous_token_expires_at")
-    private Instant previousTokenExpiresAt;
-    @Column(name = "sliding_expires_at", nullable = false)
-    private Instant slidingExpiresAt;
-    @Column(name = "absolute_expires_at", nullable = false, updatable = false)
-    private Instant absoluteExpiresAt;
+
+    @Column(name = "expires_at", nullable = false, updatable = false)
+    private Instant expiresAt;
+
     @Column(nullable = false)
     private boolean revoked;
 
     protected UserSession() {}
 
-    public UserSession(long userId, String hash, Instant sliding, Instant absolute) {
+    public UserSession(long userId, String refreshTokenHash, Instant expiresAt) {
         this.userId = userId;
-        this.refreshTokenHash = hash;
-        this.slidingExpiresAt = sliding;
-        this.absoluteExpiresAt = absolute;
+        this.refreshTokenHash = refreshTokenHash;
+        this.expiresAt = expiresAt;
     }
 
     public UUID getId() { return id; }
     public long getUserId() { return userId; }
     public String getRefreshTokenHash() { return refreshTokenHash; }
-    public String getPreviousTokenHash() { return previousTokenHash; }
-    public Instant getSlidingExpiresAt() { return slidingExpiresAt; }
-    public Instant getAbsoluteExpiresAt() { return absoluteExpiresAt; }
-    public boolean isRevoked() { return revoked; }
+    public Instant getExpiresAt() { return expiresAt; }
 
     public boolean isActive(Instant now) {
-        return !revoked && slidingExpiresAt.isAfter(now) && absoluteExpiresAt.isAfter(now);
+        return !revoked && expiresAt.isAfter(now);
     }
 
-    public boolean isPreviousWithinGrace(String hash, Instant now) {
-        return hash.equals(previousTokenHash) && previousTokenExpiresAt != null && previousTokenExpiresAt.isAfter(now);
-    }
-
-    public void rotate(String hash, Instant sliding, Instant graceDeadline) {
-        previousTokenHash = refreshTokenHash;
-        previousTokenExpiresAt = graceDeadline;
-        refreshTokenHash = hash;
-        slidingExpiresAt = sliding;
+    public void rotate(String refreshTokenHash) {
+        this.refreshTokenHash = refreshTokenHash;
     }
 
     public void revoke() { revoked = true; }

@@ -42,7 +42,7 @@ class AuthControllerTest {
     private static final UserProfile USER = new UserProfile(17L, "google", "user-123", "Test User", "test@example.com");
     private static final SessionPrincipal PRINCIPAL = new SessionPrincipal(17L, CODE);
     private static final AuthTokens TOKENS = new AuthTokens(new AuthResponse("signed.jwt.value", "Bearer", 600,
-            Instant.parse("2026-11-18T12:10:00Z"), USER), "b".repeat(43), Duration.ofDays(7));
+            Instant.parse("2026-11-18T12:10:00Z"), USER), "b".repeat(43), Duration.ofDays(30));
 
     @Autowired private MockMvc mvc;
     @MockitoBean private AuthService auth;
@@ -75,7 +75,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.user.id").value(17)).andExpect(jsonPath("$.refreshToken").doesNotExist())
                 .andExpect(cookie().value(AuthCookies.REFRESH, TOKENS.refreshToken()))
                 .andExpect(cookie().httpOnly(AuthCookies.REFRESH, true)).andExpect(cookie().secure(AuthCookies.REFRESH, true))
-                .andExpect(cookie().path(AuthCookies.REFRESH, "/api/auth")).andExpect(cookie().maxAge(AuthCookies.REFRESH, 604800))
+                .andExpect(cookie().path(AuthCookies.REFRESH, "/api/auth")).andExpect(cookie().maxAge(AuthCookies.REFRESH, 2592000))
                 .andExpect(cookie().maxAge("hypertube_access", 0)).andExpect(cookie().maxAge("hypertube_login_proof", 0))
                 .andExpect(header().string("Cache-Control", "no-store")).andReturn();
         assertThat(result.getResponse().getCookie(AuthCookies.REFRESH).getAttribute("SameSite")).isEqualTo("Strict");
@@ -98,13 +98,6 @@ class AuthControllerTest {
         mvc.perform(withCsrf("/api/auth/refresh").cookie(new Cookie(AuthCookies.REFRESH, "refresh")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").value("signed.jwt.value"))
                 .andExpect(cookie().value(AuthCookies.REFRESH, TOKENS.refreshToken()));
-    }
-
-    @Test
-    void graceResponseDoesNotOverwriteRefreshCookie() throws Exception {
-        when(tokens.refresh("old")).thenReturn(new AuthTokens(TOKENS.response(), null, Duration.ofDays(7)));
-        mvc.perform(withCsrf("/api/auth/refresh").cookie(new Cookie(AuthCookies.REFRESH, "old")))
-                .andExpect(status().isOk()).andExpect(header().doesNotExist("Set-Cookie"));
     }
 
     @Test

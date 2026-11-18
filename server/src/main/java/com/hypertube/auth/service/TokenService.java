@@ -3,7 +3,6 @@ package com.hypertube.auth.service;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -53,10 +52,8 @@ public class TokenService {
         UserProfile user = auth.finishLogin(code, proof)
                 .orElseThrow(() -> new AuthException("invalid_handoff", "The login handoff is invalid or expired", false));
         Instant now = clock.instant();
-        Instant absolute = now.plus(properties.absoluteTtl());
-        Instant sliding = earlier(now.plus(properties.slidingTtl()), absolute);
         String refreshToken = TokenValues.generate();
-        UserSession session = sessions.save(new UserSession(user.id(), TokenValues.hash(refreshToken), sliding, absolute));
+        UserSession session = sessions.save(new UserSession(user.id(), TokenValues.hash(refreshToken), now.plus(properties.refreshTtl())));
         return issue(session, user, refreshToken, now);
     }
 
@@ -79,22 +76,14 @@ public class TokenService {
             revoke(session);
             throw new AuthException("session_expired", "The session is expired or revoked", true);
         }
-        boolean current = hash.equals(session.getRefreshTokenHash());
-        boolean grace = session.isPreviousWithinGrace(hash, now)
-                || (!current && history.findGraceDeadline(hash).filter(deadline -> deadline.isAfter(now)).isPresent());
-        if (!current && !grace) {
+        if (!hash.equals(session.getRefreshTokenHash())) {
             revoke(session);
             throw new AuthException("refresh_reuse", "Refresh token reuse detected; sign in again", true);
         }
         UserProfile user = users.findProfileById(session.getUserId()).orElseThrow(this::invalidRefresh);
-        if (grace) {
-            // Do not issue a refresh cookie: an out-of-order duplicate must not overwrite the winner's token.
-            return issue(session, user, null, now);
-        }
         String next = TokenValues.generate();
-        history.save(new RefreshTokenHistory(hash, session.getId(), now.plus(properties.refreshGrace())));
-        session.rotate(TokenValues.hash(next),
-                earlier(now.plus(properties.slidingTtl()), session.getAbsoluteExpiresAt()), now.plus(properties.refreshGrace()));
+        history.save(new RefreshTokenHistory(hash, session.getId()));
+        session.rotate(TokenValues.hash(next));
         return issue(session, user, next, now);
     }
 
@@ -116,27 +105,26 @@ public class TokenService {
     }
 
     private AuthTokens issue(UserSession session, UserProfile user, String refreshToken, Instant now) {
-        Instant issuedAt = now.truncatedTo(ChronoUnit.SECONDS);
-        Instant expiry = earlier(issuedAt.plus(properties.accessTtl()),
-                earlier(session.getSlidingExpiresAt(), session.getAbsoluteExpiresAt())).truncatedTo(ChronoUnit.SECONDS);
+        Instant expiry = now.plus(properties.accessTtl());
+        if (expiry.isAfter(session.getExpiresAt())) {
+            expiry = session.getExpiresAt();
+        }
         if (!expiry.isAfter(now)) {
             revoke(session);
             throw new AuthException("session_expired", "The session is expired", true);
         }
-        String accessToken = jwt.issue(user.id(), session.getId(), UUID.randomUUID(), issuedAt, expiry);
-        return new AuthTokens(new AuthResponse(accessToken, "Bearer", Duration.between(issuedAt, expiry).toSeconds(), expiry, user),
-                refreshToken, Duration.between(now, session.getSlidingExpiresAt()));
+        String accessToken = jwt.issue(user.id(), session.getId(), UUID.randomUUID(), now, expiry);
+        return new AuthTokens(new AuthResponse(accessToken, "Bearer", Duration.between(now, expiry).toSeconds(), expiry, user),
+                refreshToken, Duration.between(now, session.getExpiresAt()));
     }
 
     private void revoke(UserSession session) {
         session.revoke();
         // Keep the tombstone after session cleanup until no JWT from this session can remain valid.
-        revocations.revoke(session.getId(), session.getAbsoluteExpiresAt());
+        revocations.revoke(session.getId(), session.getExpiresAt());
     }
 
     private AuthException invalidRefresh() {
         return new AuthException("invalid_refresh", "The refresh token is missing or invalid", true);
     }
-
-    private static Instant earlier(Instant first, Instant second) { return first.isBefore(second) ? first : second; }
 }

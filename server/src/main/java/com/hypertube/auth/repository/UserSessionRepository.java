@@ -14,7 +14,7 @@ import org.springframework.data.repository.query.Param;
 public interface UserSessionRepository extends Repository<UserSession, UUID> {
     UserSession save(UserSession session);
 
-    @Query("select s.id from UserSession s where s.refreshTokenHash = :hash or s.previousTokenHash = :hash")
+    @Query("select s.id from UserSession s where s.refreshTokenHash = :hash")
     Optional<UUID> findIdByTokenHash(@Param("hash") String hash);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -25,8 +25,8 @@ public interface UserSessionRepository extends Repository<UserSession, UUID> {
     @Query(value = """
             DELETE FROM user_sessions WHERE id IN (
                 SELECT id FROM user_sessions
-                WHERE revoked OR sliding_expires_at <= :now OR absolute_expires_at <= :now
-                ORDER BY absolute_expires_at LIMIT 1000 FOR UPDATE SKIP LOCKED
+                WHERE revoked OR expires_at <= :now
+                ORDER BY expires_at LIMIT 1000 FOR UPDATE SKIP LOCKED
             )
             """, nativeQuery = true)
     int deleteExpiredAndRevoked(@Param("now") Instant now);

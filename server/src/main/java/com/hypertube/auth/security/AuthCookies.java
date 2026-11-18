@@ -13,11 +13,9 @@ public class AuthCookies {
 
     public HttpHeaders issue(AuthTokens tokens) {
         var headers = new HttpHeaders();
-        if (tokens.refreshToken() != null) {
-            headers.add(HttpHeaders.SET_COOKIE, cookie(REFRESH, tokens.refreshToken(), "/api/auth", tokens.refreshMaxAge()));
-            headers.add(HttpHeaders.SET_COOKIE, cookie("hypertube_access", "", "/", Duration.ZERO));
-            headers.add(HttpHeaders.SET_COOKIE, cookie("hypertube_login_proof", "", "/api/auth/login-handoffs/complete", Duration.ZERO));
-        }
+        headers.add(HttpHeaders.SET_COOKIE, cookie(REFRESH, tokens.refreshToken(), "/api/auth", tokens.refreshMaxAge()));
+        headers.add(HttpHeaders.SET_COOKIE, cookie("hypertube_access", "", "/", Duration.ZERO));
+        headers.add(HttpHeaders.SET_COOKIE, cookie("hypertube_login_proof", "", "/api/auth/login-handoffs/complete", Duration.ZERO));
         return headers;
     }
 

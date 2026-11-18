@@ -50,9 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "hypertube.auth.handoff-secret=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         "hypertube.auth.jwt.secret=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZg==",
         "hypertube.auth.tokens.access-ttl=10m",
-        "hypertube.auth.tokens.sliding-ttl=7d",
-        "hypertube.auth.tokens.absolute-ttl=30d",
-        "hypertube.auth.tokens.refresh-grace=5s",
+        "hypertube.auth.tokens.refresh-ttl=30d",
         "hypertube.auth.tokens.secure-cookies=true",
         "hypertube.auth.cleanup-interval=PT24H"
 })
@@ -103,63 +101,49 @@ class TokenIntegrationTest {
     }
 
     @Test
-    void refreshRenewsSlidingExpiryWithoutChangingAbsoluteExpiry() throws Exception {
-        Credentials original = login();
-        clock.advance(Duration.ofDays(6));
-        Credentials renewed = rotate(original);
-        assertThat(instant("sliding_expires_at", original.id())).isEqualTo(START.plus(Duration.ofDays(13)));
-        assertThat(instant("absolute_expires_at", original.id())).isEqualTo(START.plus(Duration.ofDays(30)));
-        assertThat(jdbc.queryForObject("SELECT previous_token_hash FROM user_sessions", String.class))
-                .isEqualTo(TokenValues.hash(original.refresh().getValue()));
-        assertThat(renewed.refresh().getValue()).isNotEqualTo(original.refresh().getValue());
-        me(renewed).andExpect(status().isOk());
-    }
-
-    @Test
-    void absoluteDeadlineCapsSlidingRenewalAndRejectsExactlyAtDeadline() throws Exception {
-        Credentials device = login();
-        for (int i = 0; i < 4; i++) {
-            clock.advance(Duration.ofDays(6));
-            device = rotate(device);
+    void refreshRotatesTokensButNeverMovesTheFixedExpiry() throws Exception {
+        Credentials current = login();
+        Instant deadline = START.plus(Duration.ofDays(30));
+        for (int i = 0; i < 3; i++) {
+            clock.advance(Duration.ofDays(8));
+            Credentials renewed = rotate(current);
+            assertThat(renewed.refresh().getValue()).isNotEqualTo(current.refresh().getValue());
+            assertThat(instant("expires_at", renewed.id())).isEqualTo(deadline);
+            assertThat(renewed.refresh().getMaxAge()).isEqualTo((int) Duration.between(clock.instant(), deadline).toSeconds());
+            me(renewed).andExpect(status().isOk());
+            current = renewed;
         }
-        clock.advance(Duration.ofDays(5));
-        device = rotate(device);
-        assertThat(instant("sliding_expires_at", device.id())).isEqualTo(START.plus(Duration.ofDays(30)));
-        assertThat(instant("absolute_expires_at", device.id())).isEqualTo(START.plus(Duration.ofDays(30)));
-        clock.set(START.plus(Duration.ofDays(30)).minusSeconds(60));
-        device = rotate(device);
-        assertThat(jwt.verify(device.access()).orElseThrow().expiresAt()).isEqualTo(START.plus(Duration.ofDays(30)));
-        clock.set(START.plus(Duration.ofDays(30)));
-        refresh(device.refresh()).andExpect(status().isUnauthorized()).andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
-        assertThat(revoked(device.id())).isTrue();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM information_schema.columns WHERE table_name = 'user_sessions'
+                AND column_name IN ('sliding_expires_at', 'absolute_expires_at', 'previous_token_hash', 'previous_token_expires_at')
+                """, Integer.class)).isZero();
     }
 
     @Test
-    void slidingExpiryIsStrictAndRevocationCommitsDespiteUnauthorizedResponse() throws Exception {
-        Credentials device = login();
-        clock.advance(Duration.ofDays(7));
-        refresh(device.refresh()).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("session_expired"));
-        assertThat(revoked(device.id())).isTrue();
-    }
-
-    @Test
-    void previousTokenWithinGraceDoesNotRotateOrExtendWindow() throws Exception {
+    void accessExpiryIsCappedAndRefreshFailsAtTheFixedDeadline() throws Exception {
         Credentials original = login();
-        Credentials winner = rotate(original);
-        Instant deadline = instant("previous_token_expires_at", original.id());
-        clock.advance(Duration.ofSeconds(4));
-        var duplicate = refresh(original.refresh()).andExpect(status().isOk())
-                .andExpect(header().doesNotExist("Set-Cookie")).andReturn();
-        Credentials duplicateAccess = from(duplicate, winner.refresh());
-        me(duplicateAccess).andExpect(status().isOk());
-        assertThat(instant("previous_token_expires_at", original.id())).isEqualTo(deadline);
-        assertThat(jdbc.queryForObject("SELECT refresh_token_hash FROM user_sessions", String.class))
-                .isEqualTo(TokenValues.hash(winner.refresh().getValue()));
-        clock.advance(Duration.ofSeconds(1));
-        refresh(original.refresh()).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("refresh_reuse"));
+        Instant deadline = START.plus(Duration.ofDays(30));
+        clock.set(deadline.minusSeconds(60));
+        Credentials renewed = rotate(original);
+        assertThat(jwt.verify(renewed.access()).orElseThrow().expiresAt()).isEqualTo(deadline);
+        assertThat(renewed.refresh().getMaxAge()).isEqualTo(60);
+        clock.set(deadline);
+        refresh(renewed.refresh()).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("session_expired"))
+                .andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
         assertThat(revoked(original.id())).isTrue();
-        me(winner).andExpect(status().isUnauthorized());
-        me(duplicateAccess).andExpect(status().isUnauthorized());
+        me(renewed).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void reuseOfAConsumedRefreshTokenRevokesTheSession() throws Exception {
+        Credentials original = login();
+        Credentials renewed = rotate(original);
+        refresh(original.refresh()).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("refresh_reuse"));
+        assertThat(revoked(original.id())).isTrue();
+        me(renewed).andExpect(status().isUnauthorized());
+        refresh(renewed.refresh()).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -175,20 +159,7 @@ class TokenIntegrationTest {
     }
 
     @Test
-    void overlappingRotationsPreserveEachConsumedTokensOriginalGraceDeadline() throws Exception {
-        Credentials original = login();
-        Credentials first = rotate(original);
-        clock.advance(Duration.ofSeconds(1));
-        Credentials second = rotate(first);
-        clock.advance(Duration.ofSeconds(2));
-        refresh(original.refresh()).andExpect(status().isOk()).andExpect(header().doesNotExist("Set-Cookie"));
-        clock.set(START.plusSeconds(5));
-        refresh(original.refresh()).andExpect(status().isUnauthorized());
-        me(second).andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void concurrentRefreshesReturnAccessButOnlyOneRotatesTheCookie() throws Exception {
+    void concurrentRefreshesCannotBothConsumeTheSameToken() throws Exception {
         Credentials original = login();
         var ready = new CountDownLatch(2);
         var start = new CountDownLatch(1);
@@ -203,16 +174,14 @@ class TokenIntegrationTest {
             assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
             start.countDown();
             var results = List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS));
-            assertThat(results).allMatch(result -> result.getResponse().getStatus() == 200);
-            var winners = results.stream().filter(result -> result.getResponse().getCookie(AuthCookies.REFRESH) != null).toList();
+            assertThat(results.stream().map(result -> result.getResponse().getStatus()).sorted().toList())
+                    .containsExactly(200, 401);
+            var winners = results.stream().filter(result -> result.getResponse().getStatus() == 200).toList();
             assertThat(winners).hasSize(1);
             Credentials winner = from(winners.getFirst(), null);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM refresh_token_history", Integer.class)).isEqualTo(1);
-            assertThat(revoked(original.id())).isFalse();
-            for (var result : results) {
-                me(from(result, winner.refresh())).andExpect(status().isOk());
-            }
-            rotate(winner);
+            assertThat(revoked(original.id())).isTrue();
+            me(winner).andExpect(status().isUnauthorized());
         }
     }
 

@@ -1,6 +1,7 @@
 package com.hypertube.auth.security;
 
 import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.function.Supplier;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,7 +31,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 public class SecurityConfiguration {
     @Bean
     Clock tokenClock() {
-        return Clock.systemUTC();
+        return Clock.tickSeconds(ZoneOffset.UTC);
     }
 
     @Bean

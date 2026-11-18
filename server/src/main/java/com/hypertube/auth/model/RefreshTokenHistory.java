@@ -1,7 +1,6 @@
 package com.hypertube.auth.model;
 
 import java.util.UUID;
-import java.time.Instant;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -19,13 +18,9 @@ public class RefreshTokenHistory {
     @Column(name = "session_id", nullable = false)
     private UUID sessionId;
 
-    @Column(name = "grace_expires_at", nullable = false)
-    private Instant graceExpiresAt;
-
     protected RefreshTokenHistory() {}
-    public RefreshTokenHistory(String hash, UUID sessionId, Instant graceExpiresAt) {
+    public RefreshTokenHistory(String hash, UUID sessionId) {
         this.tokenHash = hash;
         this.sessionId = sessionId;
-        this.graceExpiresAt = graceExpiresAt;
     }
 }

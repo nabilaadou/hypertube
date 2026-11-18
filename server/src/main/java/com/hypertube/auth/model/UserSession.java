@@ -41,7 +41,6 @@ public class UserSession {
 
     public UUID getId() { return id; }
     public long getUserId() { return userId; }
-    public String getRefreshTokenHash() { return refreshTokenHash; }
     public Instant getExpiresAt() { return expiresAt; }
 
     public boolean isActive(Instant now) {

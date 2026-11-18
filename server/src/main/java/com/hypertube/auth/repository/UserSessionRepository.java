@@ -14,8 +14,9 @@ import org.springframework.data.repository.query.Param;
 public interface UserSessionRepository extends Repository<UserSession, UUID> {
     UserSession save(UserSession session);
 
-    @Query("select s.id from UserSession s where s.refreshTokenHash = :hash")
-    Optional<UUID> findIdByTokenHash(@Param("hash") String hash);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from UserSession s where s.refreshTokenHash = :hash")
+    Optional<UserSession> findLockedByTokenHash(@Param("hash") String hash);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from UserSession s where s.id = :id")

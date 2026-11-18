@@ -7,9 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.hypertube.auth.exception.AuthException;
-import com.hypertube.auth.model.RefreshTokenHistory;
 import com.hypertube.auth.model.UserSession;
-import com.hypertube.auth.repository.RefreshTokenHistoryRepository;
 import com.hypertube.auth.repository.RevokedSessionRepository;
 import com.hypertube.auth.repository.UserRepository;
 import com.hypertube.auth.repository.UserSessionRepository;
@@ -25,19 +23,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class TokenService {
     private final AuthService auth;
     private final UserSessionRepository sessions;
-    private final RefreshTokenHistoryRepository history;
     private final RevokedSessionRepository revocations;
     private final UserRepository users;
     private final TokenProperties properties;
     private final JwtService jwt;
     private final Clock clock;
 
-    public TokenService(AuthService auth, UserSessionRepository sessions, RefreshTokenHistoryRepository history,
+    public TokenService(AuthService auth, UserSessionRepository sessions,
                         RevokedSessionRepository revocations, UserRepository users,
                         TokenProperties properties, JwtService jwt, Clock clock) {
         this.auth = auth;
         this.sessions = sessions;
-        this.history = history;
         this.revocations = revocations;
         this.users = users;
         this.properties = properties;
@@ -66,40 +62,33 @@ public class TokenService {
         if (refreshToken == null || refreshToken.isEmpty()) {
             throw invalidRefresh();
         }
-        String hash = jwt.hash(refreshToken);
-        // Resolve only an ID before taking the lock; reading token state earlier would cache stale data.
-        UserSession session = findSessionId(hash).flatMap(sessions::findLockedById).orElseThrow(this::invalidRefresh);
+        UserSession session = sessions.findLockedByTokenHash(jwt.hash(refreshToken)).orElseThrow(this::invalidRefresh);
         Instant now = clock.instant();
         if (!session.isActive(now)) {
             revoke(session);
             throw new AuthException("session_expired", "The session is expired or revoked", true);
         }
-        if (!hash.equals(session.getRefreshTokenHash())) {
-            revoke(session);
-            throw new AuthException("refresh_reuse", "Refresh token reuse detected; sign in again", true);
-        }
         UserProfile user = users.findProfileById(session.getUserId()).orElseThrow(this::invalidRefresh);
         String next = jwt.issueRefreshToken();
-        history.save(new RefreshTokenHistory(hash, session.getId()));
         session.rotate(jwt.hash(next));
         return issue(session, user, next, now);
     }
 
     @Transactional
     public void logout(SessionPrincipal principal, String refreshToken) {
-        Optional<UUID> id = principal != null ? Optional.of(principal.sessionId())
-                : refreshToken != null && !refreshToken.isEmpty() ? findSessionId(jwt.hash(refreshToken)) : Optional.empty();
-        id.flatMap(sessions::findLockedById).ifPresent(this::revoke);
+        Optional<UserSession> session = Optional.empty();
+        if (principal != null) {
+            session = sessions.findLockedById(principal.sessionId());
+        } else if (refreshToken != null && !refreshToken.isEmpty()) {
+            session = sessions.findLockedByTokenHash(jwt.hash(refreshToken));
+        }
+        session.ifPresent(this::revoke);
     }
 
     @Transactional(readOnly = true)
     public UserProfile currentUser(SessionPrincipal principal) {
         return users.findProfileById(principal.userId())
                 .orElseThrow(() -> new AuthException("user_not_found", "The authenticated user no longer exists", false));
-    }
-
-    private Optional<UUID> findSessionId(String hash) {
-        return sessions.findIdByTokenHash(hash).or(() -> history.findSessionId(hash));
     }
 
     private AuthTokens issue(UserSession session, UserProfile user, String refreshToken, Instant now) {

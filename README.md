@@ -84,7 +84,7 @@ Register the redirect URIs with your 42 application and Google **Web application
 make up
 ```
 
-Open `http://localhost:4567` and select a provider. After a successful callback, the auth service creates a handoff through `POST /internal/auth/login-handoffs`. Handoffs expire after two minutes. The browser submits the handoff to `POST /api/auth/login-handoffs/complete`, which saves or updates the user in PostgreSQL, issues a signed JWT access token and a refresh token, and returns the access token, token lifetime, and user profile as JSON. The profile contains the database ID, provider, provider user ID, and available name and email. Repeat sign-ins with the same provider account reuse the database ID.
+Open `http://localhost:4567` and select a provider. After a successful callback, the auth service creates a handoff through `POST /internal/auth/login-handoffs`. Handoffs expire after two minutes. The browser submits the handoff to `POST /api/auth/login-handoffs/complete`, which saves or updates the user in PostgreSQL and sets JWT access and opaque refresh tokens as HttpOnly cookies. Its JSON response contains token lifetime and user profile metadata. The profile contains the database ID, provider, provider user ID, and available name and email. Repeat sign-ins with the same provider account reuse the database ID.
 
 Run `make up` again after changing `.env`. Use the same browser-facing hostname and scheme in `AUTH_BASE_URL` and `SPRING_PUBLIC_URL` so the browser can carry the login cookie to Spring Boot.
 
@@ -118,13 +118,13 @@ For all state-changing API requests, retain the cookie from `GET /api/auth/csrf`
 
 Access lasts `AUTH_ACCESS_TTL` (default `10m`). A refresh session expires at a fixed `AUTH_REFRESH_TTL` (default `30d`) after login. This timestamp is set once and never extended. Replace the old `AUTH_SLIDING_TTL`, `AUTH_ABSOLUTE_TTL`, and `AUTH_REFRESH_GRACE` settings with `AUTH_REFRESH_TTL`. Every successful refresh replaces the refresh token and sets a new access JWT cookie, while the replacement cookie's lifetime is only the time remaining until the original expiry. Access JWTs are capped at that same deadline.
 
-Refresh rotation locks the session pessimistically and stores the consumed token's hash for replay detection. A consumed token cannot be used again; replay revokes the session. The client must serialize refresh requests because duplicate uses of the same token are rejected. There is no sliding deadline or grace window. Ordinary rotation leaves already-issued JWTs valid until their ten-minute expiry; logout or replay invalidates the session's JWTs immediately through a denylist.
+Refresh rotation looks up and locks the session by its current refresh-token hash, then replaces that hash. Only the current refresh token is accepted; old or unknown tokens return `401` without revoking the session or invalidating its current token. Old hashes are not retained. The client should serialize refresh requests because concurrent uses of one token produce one success and one failure, and failure responses clear the requesting client's credential cookies. There is no sliding deadline or grace window. Ordinary rotation leaves already-issued JWTs valid until their ten-minute expiry; logout invalidates the session's JWTs immediately through a denylist.
 
-The session table has only `id`, `user_id`, `refresh_token_hash`, `expires_at`, and `revoked`. Token history stores only a consumed hash and its session ID. Expired refresh credentials require a new login.
+The session table has only `id`, `user_id`, `refresh_token_hash`, `expires_at`, and `revoked`. It stores only the current refresh hash; there is no refresh-token history table. Expired refresh credentials require a new login.
 
-A scheduled cleanup runs every `AUTH_CLEANUP_INTERVAL` (default `PT15M`). Each run removes up to 1,000 expired/revoked sessions and 1,000 expired revocation records using `SKIP LOCKED`; consumed-token history cascades with its session. Revocation tombstones remain until the fixed session expiry so deleting a revoked session cannot make its JWTs valid again.
+A scheduled cleanup runs every `AUTH_CLEANUP_INTERVAL` (default `PT15M`). Each run removes up to 1,000 expired/revoked sessions and 1,000 expired revocation records using `SKIP LOCKED`. Revocation tombstones remain until the fixed session expiry so deleting a revoked session cannot make its JWTs valid again.
 
-Flyway V7 preserves existing users, session IDs, refresh hashes, and the original absolute expiry as `expires_at`. Sessions whose former idle deadline already passed stay revoked. The migration removes sliding/previous-token fields and grace timestamps. Applied migrations remain unchanged, and Hibernate validates the resulting schema.
+Flyway V7 preserves existing users, session IDs, refresh hashes, and the original absolute expiry as `expires_at`. Sessions whose former idle deadline already passed stay revoked. The migration removes sliding/previous-token fields and grace timestamps. V8 drops refresh-token history while preserving current session hashes and deadlines. Applied migrations remain unchanged, and Hibernate validates the resulting schema.
 
 ## Verify changes
 

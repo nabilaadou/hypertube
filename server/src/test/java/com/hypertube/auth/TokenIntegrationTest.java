@@ -80,6 +80,9 @@ class TokenIntegrationTest {
                 SELECT count(*) FROM information_schema.columns WHERE table_name = 'user_sessions'
                 AND column_name IN ('device_info', 'ip_address', 'created_at', 'last_used_at')
                 """, Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM information_schema.tables WHERE table_name = 'refresh_token_history'
+                """, Integer.class)).isZero();
         var claims = jwt.verify(device.access()).orElseThrow();
         assertThat(claims.userId()).isEqualTo(device.userId());
         assertThat(claims.sessionId()).isEqualTo(device.id());
@@ -148,24 +151,26 @@ class TokenIntegrationTest {
     }
 
     @Test
-    void reuseOfAConsumedRefreshTokenRevokesTheSession() throws Exception {
+    void oldRefreshTokenIsRejectedWithoutRevokingTheCurrentToken() throws Exception {
         Credentials original = login();
         Credentials renewed = rotate(original);
         refresh(original.refresh()).andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("refresh_reuse"));
-        assertThat(revoked(original.id())).isTrue();
-        me(renewed).andExpect(status().isUnauthorized());
-        refresh(renewed.refresh()).andExpect(status().isUnauthorized());
+                .andExpect(jsonPath("$.code").value("invalid_refresh"));
+        assertThat(revoked(original.id())).isFalse();
+        me(renewed).andExpect(status().isOk());
+        me(rotate(renewed)).andExpect(status().isOk());
     }
 
     @Test
-    void olderTokenHistoryDetectsTheftWithoutRevokingAnotherSession() throws Exception {
-        Credentials stolen = login();
+    void discardedRefreshTokensCannotAuthenticateOrRevokeAnySession() throws Exception {
+        Credentials original = login();
         Credentials other = login();
-        Credentials current = rotate(rotate(stolen));
-        refresh(stolen.refresh()).andExpect(status().isUnauthorized());
-        me(current).andExpect(status().isUnauthorized());
-        refresh(current.refresh()).andExpect(status().isUnauthorized());
+        Credentials current = rotate(rotate(original));
+        refresh(original.refresh()).andExpect(status().isUnauthorized());
+        mvc.perform(withCsrf("/api/auth/logout", original.refresh())).andExpect(status().isNoContent());
+        assertThat(revoked(current.id())).isFalse();
+        me(current).andExpect(status().isOk());
+        me(rotate(current)).andExpect(status().isOk());
         me(other).andExpect(status().isOk());
     }
 
@@ -190,9 +195,9 @@ class TokenIntegrationTest {
             var winners = results.stream().filter(result -> result.getResponse().getStatus() == 200).toList();
             assertThat(winners).hasSize(1);
             Credentials winner = from(winners.getFirst());
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM refresh_token_history", Integer.class)).isEqualTo(1);
-            assertThat(revoked(original.id())).isTrue();
-            me(winner).andExpect(status().isUnauthorized());
+            assertThat(revoked(original.id())).isFalse();
+            me(winner).andExpect(status().isOk());
+            me(rotate(winner)).andExpect(status().isOk());
         }
     }
 
@@ -240,13 +245,12 @@ class TokenIntegrationTest {
     }
 
     @Test
-    void cleanupDeletesRevokedRowsAndHistoryWithoutResurrectingAccessJwt() throws Exception {
+    void cleanupDeletesRevokedRowsWithoutResurrectingAccessJwt() throws Exception {
         Credentials first = rotate(login());
         Credentials second = login();
         mvc.perform(withCsrf("/api/auth/logout", first.refresh())).andExpect(status().isNoContent());
         cleanup.cleanup();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_sessions", Integer.class)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM refresh_token_history", Integer.class)).isZero();
         me(first).andExpect(status().isUnauthorized());
         me(second).andExpect(status().isOk());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM revoked_sessions", Integer.class)).isEqualTo(1);

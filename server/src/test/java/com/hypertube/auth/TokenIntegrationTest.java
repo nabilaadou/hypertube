@@ -14,7 +14,6 @@ import java.util.UUID;
 
 import com.hypertube.auth.security.AuthCookies;
 import com.hypertube.auth.security.JwtService;
-import com.hypertube.auth.security.TokenValues;
 import com.hypertube.auth.service.SessionCleanupService;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.ServletException;
@@ -90,7 +89,7 @@ class TokenIntegrationTest {
         assertThat(claims.expiresAt()).isEqualTo(START.plusSeconds(600));
         assertThat(device.refresh().getValue()).hasSize(43);
         assertThat(jdbc.queryForObject("SELECT refresh_token_hash FROM user_sessions", String.class))
-                .isEqualTo(TokenValues.hash(device.refresh().getValue())).isNotEqualTo(device.refresh().getValue());
+                .isEqualTo(jwt.hash(device.refresh().getValue())).isNotEqualTo(device.refresh().getValue());
         assertThat(device.refresh().isHttpOnly()).isTrue();
         assertThat(device.refresh().getSecure()).isTrue();
         assertThat(device.refresh().getPath()).isEqualTo("/api/auth");
@@ -301,7 +300,7 @@ class TokenIntegrationTest {
         return mvc.perform(post("/internal/auth/login-handoffs").header("Authorization", "Bearer " + SECRET)
                 .contentType(MediaType.APPLICATION_JSON).content("""
                         {"provider":"google","providerUserId":"%s","displayName":"Test User","proofHash":"%s"}
-                        """.formatted(account, TokenValues.hash(PROOF))))
+                        """.formatted(account, jwt.hash(PROOF))))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
     }
     private MockHttpServletRequestBuilder complete(String code) {

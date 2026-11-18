@@ -30,7 +30,7 @@ class JwtServiceTest {
 
     @Test
     void signsAndVerifiesAccessJwtClaims() {
-        String token = jwt.issue(17, SESSION, TOKEN, NOW, NOW.plusSeconds(900));
+        String token = jwt.issueAccessToken(17, SESSION, TOKEN, NOW, NOW.plusSeconds(900));
         var claims = jwt.verify(token).orElseThrow();
         assertThat(token.split("\\.")).hasSize(3);
         String payload = new String(Base64.getUrlDecoder().decode(token.split("\\.")[1]), java.nio.charset.StandardCharsets.UTF_8);
@@ -44,13 +44,13 @@ class JwtServiceTest {
     @Test
     void rejectsExpiredTokensIncludingExactExpiration() {
         for (Instant expiry : List.of(NOW.minusSeconds(1), NOW)) {
-            assertThat(jwt.verify(jwt.issue(17, SESSION, TOKEN, NOW.minusSeconds(60), expiry))).isEmpty();
+            assertThat(jwt.verify(jwt.issueAccessToken(17, SESSION, TOKEN, NOW.minusSeconds(60), expiry))).isEmpty();
         }
     }
 
     @Test
     void rejectsTamperingWrongSigningKeyAndUnsignedTokens() {
-        String token = jwt.issue(17, SESSION, TOKEN, NOW, NOW.plusSeconds(900));
+        String token = jwt.issueAccessToken(17, SESSION, TOKEN, NOW, NOW.plusSeconds(900));
         String[] parts = token.split("\\.");
         String payload = new String(Base64.getUrlDecoder().decode(parts[1]), java.nio.charset.StandardCharsets.UTF_8);
         String tampered = Base64.getUrlEncoder().withoutPadding().encodeToString(
@@ -93,7 +93,7 @@ class JwtServiceTest {
 
     @Test
     void rejectsMalformedAndOversizedTokens() {
-        for (String token : List.of("", "invalid", "a.b.c", "a".repeat(4097), TokenValues.generate())) {
+        for (String token : List.of("", "invalid", "a.b.c", "a".repeat(4097), jwt.issueRefreshToken())) {
             assertThat(jwt.verify(token)).isEmpty();
         }
         assertThat(jwt.verify(null)).isEmpty();

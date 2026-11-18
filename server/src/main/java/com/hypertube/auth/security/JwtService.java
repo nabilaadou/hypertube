@@ -1,8 +1,14 @@
 package com.hypertube.auth.security;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +31,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class JwtService {
+    private static final SecureRandom RANDOM = new SecureRandom();
     private final JwtProperties properties;
     private final NimbusJwtEncoder encoder;
     private final NimbusJwtDecoder decoder;
@@ -43,12 +50,27 @@ public class JwtService {
                 new JwtIssuerValidator(properties.issuer()), new JwtTypeValidator("at+jwt"), this::validateClaims));
     }
 
-    public String issue(long userId, UUID sessionId, UUID tokenId, Instant issuedAt, Instant expiresAt) {
+    public String issueAccessToken(long userId, UUID sessionId, UUID tokenId, Instant issuedAt, Instant expiresAt) {
         var claims = JwtClaimsSet.builder().issuer(properties.issuer()).audience(List.of(properties.audience()))
                 .subject(Long.toString(userId)).id(tokenId.toString()).issuedAt(issuedAt).expiresAt(expiresAt)
                 .claim("sid", sessionId.toString()).claim("token_use", "access").build();
         return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).type("at+jwt").build(), claims))
                 .getTokenValue();
+    }
+
+    public String issueRefreshToken() {
+        byte[] bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    public String hash(String token) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(token.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     public Optional<AccessClaims> verify(String token) {

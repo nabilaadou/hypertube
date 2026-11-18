@@ -19,7 +19,6 @@ import com.hypertube.auth.security.AuthTokens;
 import com.hypertube.auth.security.JwtService;
 import com.hypertube.auth.security.SessionPrincipal;
 import com.hypertube.auth.security.TokenProperties;
-import com.hypertube.auth.security.TokenValues;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,8 +51,8 @@ public class TokenService {
         UserProfile user = auth.finishLogin(code, proof)
                 .orElseThrow(() -> new AuthException("invalid_handoff", "The login handoff is invalid or expired", false));
         Instant now = clock.instant();
-        String refreshToken = TokenValues.generate();
-        UserSession session = sessions.save(new UserSession(user.id(), TokenValues.hash(refreshToken), now.plus(properties.refreshTtl())));
+        String refreshToken = jwt.issueRefreshToken();
+        UserSession session = sessions.save(new UserSession(user.id(), jwt.hash(refreshToken), now.plus(properties.refreshTtl())));
         return issue(session, user, refreshToken, now);
     }
 
@@ -68,7 +67,7 @@ public class TokenService {
         if (refreshToken == null || refreshToken.isEmpty()) {
             throw invalidRefresh();
         }
-        String hash = TokenValues.hash(refreshToken);
+        String hash = jwt.hash(refreshToken);
         // Resolve only an ID before taking the lock; reading token state earlier would cache stale data.
         UserSession session = findSessionId(hash).flatMap(sessions::findLockedById).orElseThrow(this::invalidRefresh);
         Instant now = clock.instant();
@@ -81,16 +80,16 @@ public class TokenService {
             throw new AuthException("refresh_reuse", "Refresh token reuse detected; sign in again", true);
         }
         UserProfile user = users.findProfileById(session.getUserId()).orElseThrow(this::invalidRefresh);
-        String next = TokenValues.generate();
+        String next = jwt.issueRefreshToken();
         history.save(new RefreshTokenHistory(hash, session.getId()));
-        session.rotate(TokenValues.hash(next));
+        session.rotate(jwt.hash(next));
         return issue(session, user, next, now);
     }
 
     @Transactional
     public void logout(SessionPrincipal principal, String refreshToken) {
         Optional<UUID> id = principal != null ? Optional.of(principal.sessionId())
-                : refreshToken != null && !refreshToken.isEmpty() ? findSessionId(TokenValues.hash(refreshToken)) : Optional.empty();
+                : refreshToken != null && !refreshToken.isEmpty() ? findSessionId(jwt.hash(refreshToken)) : Optional.empty();
         id.flatMap(sessions::findLockedById).ifPresent(this::revoke);
     }
 
@@ -113,7 +112,7 @@ public class TokenService {
             revoke(session);
             throw new AuthException("session_expired", "The session is expired", true);
         }
-        String accessToken = jwt.issue(user.id(), session.getId(), UUID.randomUUID(), now, expiry);
+        String accessToken = jwt.issueAccessToken(user.id(), session.getId(), UUID.randomUUID(), now, expiry);
         return new AuthTokens(new AuthResponse(Duration.between(now, expiry).toSeconds(), expiry, user),
                 accessToken, refreshToken, Duration.between(now, session.getExpiresAt()));
     }

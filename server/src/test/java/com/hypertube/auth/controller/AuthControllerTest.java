@@ -8,7 +8,6 @@ import java.util.UUID;
 import com.hypertube.auth.exception.AuthException;
 import com.hypertube.auth.schema.AuthResponse;
 import com.hypertube.auth.schema.OAuthIdentity;
-import com.hypertube.auth.schema.SessionResponse;
 import com.hypertube.auth.schema.UserProfile;
 import com.hypertube.auth.security.AuthCookies;
 import com.hypertube.auth.security.AuthTokens;
@@ -29,7 +28,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -70,7 +68,7 @@ class AuthControllerTest {
 
     @Test
     void returnsJwtInJsonAndOnlyRefreshCredentialInCookie() throws Exception {
-        when(tokens.completeLogin(eq(CODE), eq(PROOF), any())).thenReturn(TOKENS);
+        when(tokens.completeLogin(CODE, PROOF)).thenReturn(TOKENS);
         var result = mvc.perform(post("/api/auth/login-handoffs/complete").param("code", CODE.toString())
                         .cookie(new Cookie("hypertube_login_proof", PROOF)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").value("signed.jwt.value"))
@@ -87,7 +85,7 @@ class AuthControllerTest {
 
     @Test
     void centralizedHandoffFailureDoesNotClearExistingRefresh() throws Exception {
-        when(tokens.completeLogin(eq(CODE), eq(PROOF), any()))
+        when(tokens.completeLogin(CODE, PROOF))
                 .thenThrow(new AuthException("invalid_handoff", "Invalid handoff", false));
         mvc.perform(post("/api/auth/login-handoffs/complete").param("code", CODE.toString())
                         .cookie(new Cookie("hypertube_login_proof", PROOF)))
@@ -97,7 +95,7 @@ class AuthControllerTest {
 
     @Test
     void refreshesWithoutAnAccessToken() throws Exception {
-        when(tokens.refresh(eq("refresh"), any())).thenReturn(TOKENS);
+        when(tokens.refresh("refresh")).thenReturn(TOKENS);
         mvc.perform(withCsrf("/api/auth/refresh").cookie(new Cookie(AuthCookies.REFRESH, "refresh")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").value("signed.jwt.value"))
                 .andExpect(cookie().value(AuthCookies.REFRESH, TOKENS.refreshToken()));
@@ -105,14 +103,14 @@ class AuthControllerTest {
 
     @Test
     void graceResponseDoesNotOverwriteRefreshCookie() throws Exception {
-        when(tokens.refresh(eq("old"), any())).thenReturn(new AuthTokens(TOKENS.response(), null, Duration.ofDays(7)));
+        when(tokens.refresh("old")).thenReturn(new AuthTokens(TOKENS.response(), null, Duration.ofDays(7)));
         mvc.perform(withCsrf("/api/auth/refresh").cookie(new Cookie(AuthCookies.REFRESH, "old")))
                 .andExpect(status().isOk()).andExpect(header().doesNotExist("Set-Cookie"));
     }
 
     @Test
     void centralizedRefreshFailureClearsCookie() throws Exception {
-        when(tokens.refresh(eq(""), any())).thenThrow(new AuthException("invalid_refresh", "Invalid refresh", true));
+        when(tokens.refresh("")).thenThrow(new AuthException("invalid_refresh", "Invalid refresh", true));
         mvc.perform(withCsrf("/api/auth/refresh")).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("invalid_refresh"))
                 .andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
@@ -143,27 +141,12 @@ class AuthControllerTest {
     }
 
     @Test
-    void requiresAuthenticationForLogoutAllAndSessions() throws Exception {
-        mvc.perform(post("/api/auth/logout-all")).andExpect(status().isUnauthorized())
-                .andExpect(header().string("WWW-Authenticate", "Bearer"));
-        mvc.perform(get("/api/auth/sessions")).andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void logoutAllUsesAuthenticatedPrincipal() throws Exception {
+    void removedSessionManagementEndpointsAreNotExposed() throws Exception {
         when(tokens.authenticate("valid-jwt")).thenReturn(Optional.of(PRINCIPAL));
         mvc.perform(post("/api/auth/logout-all").header("Authorization", "Bearer valid-jwt"))
-                .andExpect(status().isNoContent()).andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
-        verify(tokens).logoutAll(PRINCIPAL);
-    }
-
-    @Test
-    void listsCurrentDeviceWithoutLeakingTokenHashes() throws Exception {
-        when(tokens.authenticate("valid-jwt")).thenReturn(Optional.of(PRINCIPAL));
-        when(tokens.activeSessions(PRINCIPAL)).thenReturn(List.of(new SessionResponse(CODE, "Chrome on Linux", "127.0.0.1", Instant.now(), true)));
+                .andExpect(status().isNotFound());
         mvc.perform(get("/api/auth/sessions").header("Authorization", "Bearer valid-jwt"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$[0].isCurrent").value(true))
-                .andExpect(jsonPath("$[0].refreshTokenHash").doesNotExist());
+                .andExpect(status().isNotFound());
     }
 
     @Test

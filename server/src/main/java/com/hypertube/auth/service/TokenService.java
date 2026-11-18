@@ -16,10 +16,8 @@ import com.hypertube.auth.repository.RevokedSessionRepository;
 import com.hypertube.auth.repository.UserRepository;
 import com.hypertube.auth.repository.UserSessionRepository;
 import com.hypertube.auth.schema.AuthResponse;
-import com.hypertube.auth.schema.SessionResponse;
 import com.hypertube.auth.schema.UserProfile;
 import com.hypertube.auth.security.AuthTokens;
-import com.hypertube.auth.security.DeviceMetadata;
 import com.hypertube.auth.security.JwtService;
 import com.hypertube.auth.security.SessionPrincipal;
 import com.hypertube.auth.security.TokenProperties;
@@ -53,16 +51,14 @@ public class TokenService {
     }
 
     @Transactional
-    public AuthTokens completeLogin(UUID code, String proof, DeviceMetadata device) {
+    public AuthTokens completeLogin(UUID code, String proof) {
         UserProfile user = auth.finishLogin(code, proof)
                 .orElseThrow(() -> new AuthException("invalid_handoff", "The login handoff is invalid or expired", false));
-        // Serialize new logins with logout-all for the same user.
-        users.findLockedById(user.id()).orElseThrow();
         Instant now = clock.instant();
         Instant absolute = now.plus(properties.absoluteTtl());
         Instant sliding = earlier(now.plus(properties.slidingTtl()), absolute);
         String refreshToken = TokenValues.generate();
-        UserSession session = sessions.save(new UserSession(user.id(), TokenValues.hash(refreshToken), device, now, sliding, absolute));
+        UserSession session = sessions.save(new UserSession(user.id(), TokenValues.hash(refreshToken), sliding, absolute));
         return issue(session, user, refreshToken, now);
     }
 
@@ -73,7 +69,7 @@ public class TokenService {
     }
 
     @Transactional(noRollbackFor = AuthException.class)
-    public AuthTokens refresh(String refreshToken, DeviceMetadata device) {
+    public AuthTokens refresh(String refreshToken) {
         if (!TokenValues.isValid(refreshToken)) {
             throw invalidRefresh();
         }
@@ -83,7 +79,7 @@ public class TokenService {
         Instant now = clock.instant();
         if (!session.isActive(now)) {
             revoke(session);
-            throw new AuthException("session_expired", "The device session is expired or revoked", true);
+            throw new AuthException("session_expired", "The session is expired or revoked", true);
         }
         boolean current = hash.equals(session.getRefreshTokenHash());
         boolean grace = session.isPreviousWithinGrace(hash, now)
@@ -99,7 +95,7 @@ public class TokenService {
         }
         String next = TokenValues.generate();
         history.save(new RefreshTokenHistory(hash, session.getId(), now.plus(properties.refreshGrace())));
-        session.rotate(TokenValues.hash(next), device, now,
+        session.rotate(TokenValues.hash(next),
                 earlier(now.plus(properties.slidingTtl()), session.getAbsoluteExpiresAt()), now.plus(properties.refreshGrace()));
         return issue(session, user, next, now);
     }
@@ -109,20 +105,6 @@ public class TokenService {
         Optional<UUID> id = principal != null ? Optional.of(principal.sessionId())
                 : TokenValues.isValid(refreshToken) ? findSessionId(TokenValues.hash(refreshToken)) : Optional.empty();
         id.flatMap(sessions::findLockedById).ifPresent(this::revoke);
-    }
-
-    @Transactional
-    public void logoutAll(SessionPrincipal principal) {
-        users.findLockedById(principal.userId()).orElseThrow();
-        sessions.findAllLockedByUserId(principal.userId()).forEach(this::revoke);
-    }
-
-    @Transactional(readOnly = true)
-    public List<SessionResponse> activeSessions(SessionPrincipal principal) {
-        return sessions.findActiveByUserId(principal.userId(), clock.instant()).stream()
-                .map(session -> new SessionResponse(session.getId(), session.getDeviceInfo(), session.getIpAddress(),
-                        session.getLastUsedAt(), session.getId().equals(principal.sessionId())))
-                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -141,7 +123,7 @@ public class TokenService {
                 earlier(session.getSlidingExpiresAt(), session.getAbsoluteExpiresAt())).truncatedTo(ChronoUnit.SECONDS);
         if (!expiry.isAfter(now)) {
             revoke(session);
-            throw new AuthException("session_expired", "The device session is expired", true);
+            throw new AuthException("session_expired", "The session is expired", true);
         }
         String accessToken = jwt.issue(user.id(), session.getId(), UUID.randomUUID(), USER_AUTHORITIES, issuedAt, expiry);
         return new AuthTokens(new AuthResponse(accessToken, "Bearer", Duration.between(issuedAt, expiry).toSeconds(), expiry, user),
@@ -150,7 +132,7 @@ public class TokenService {
 
     private void revoke(UserSession session) {
         session.revoke();
-        // Keep the tombstone after session cleanup until no JWT from this device can remain valid.
+        // Keep the tombstone after session cleanup until no JWT from this session can remain valid.
         revocations.revoke(session.getId(), session.getAbsoluteExpiresAt());
     }
 

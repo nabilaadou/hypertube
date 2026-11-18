@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -63,8 +62,6 @@ class TokenIntegrationTest {
     private static final String SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String PROOF = "a".repeat(64);
     private static final Instant START = Instant.parse("2026-11-18T12:00:00Z");
-    private static final String CHROME = "Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36";
-    private static final String FIREFOX = "Mozilla/5.0 (X11; Linux x86_64) Firefox/130.0";
     @Autowired private MockMvc mvc;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private JwtService jwt;
@@ -81,7 +78,11 @@ class TokenIntegrationTest {
 
     @Test
     void issuesBearerJwtAndSecureOpaqueRefreshCookie() throws Exception {
-        Device device = login();
+        Credentials device = login();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM information_schema.columns WHERE table_name = 'user_sessions'
+                AND column_name IN ('device_info', 'ip_address', 'created_at', 'last_used_at')
+                """, Integer.class)).isZero();
         var claims = jwt.verify(device.access()).orElseThrow();
         assertThat(claims.userId()).isEqualTo(device.userId());
         assertThat(claims.sessionId()).isEqualTo(device.id());
@@ -100,36 +101,11 @@ class TokenIntegrationTest {
     }
 
     @Test
-    void multiDeviceLoginsAreIndependentAndListingIsScopedToCurrentUser() throws Exception {
-        Device first = login("same-user", CHROME, "192.0.2.1");
-        Device second = login("same-user", FIREFOX, "2001:db8::1");
-        login("another-user", CHROME, "192.0.2.2");
-        assertThat(first.userId()).isEqualTo(second.userId());
-        assertThat(first.id()).isNotEqualTo(second.id());
-        var response = mvc.perform(get("/api/auth/sessions").header("Authorization", bearer(first)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2))
-                .andReturn().getResponse().getContentAsString();
-        List<Map<String, Object>> devices = JsonPath.read(response, "$");
-        assertThat(devices).anySatisfy(row -> {
-            assertThat(row.get("id")).isEqualTo(first.id().toString());
-            assertThat(row.get("isCurrent")).isEqualTo(true);
-            assertThat(row.get("deviceInfo")).isEqualTo("Chrome on Windows");
-        }).anySatisfy(row -> {
-            assertThat(row.get("id")).isEqualTo(second.id().toString());
-            assertThat(row.get("isCurrent")).isEqualTo(false);
-            assertThat(row.get("ipAddress")).isEqualTo("2001:db8::1");
-        });
-        assertThat(response).doesNotContain("refreshTokenHash", "previousTokenHash", first.refresh().getValue());
-    }
-
-    @Test
     void refreshRenewsSlidingExpiryWithoutChangingAbsoluteExpiry() throws Exception {
-        Device original = login();
+        Credentials original = login();
         clock.advance(Duration.ofDays(6));
-        Device renewed = rotate(original);
+        Credentials renewed = rotate(original);
         assertThat(instant("sliding_expires_at", original.id())).isEqualTo(START.plus(Duration.ofDays(13)));
-        assertThat(instant("last_used_at", original.id())).isEqualTo(clock.instant());
-        assertThat(instant("created_at", original.id())).isEqualTo(START);
         assertThat(instant("absolute_expires_at", original.id())).isEqualTo(START.plus(Duration.ofDays(30)));
         assertThat(jdbc.queryForObject("SELECT previous_token_hash FROM user_sessions", String.class))
                 .isEqualTo(TokenValues.hash(original.refresh().getValue()));
@@ -139,7 +115,7 @@ class TokenIntegrationTest {
 
     @Test
     void absoluteDeadlineCapsSlidingRenewalAndRejectsExactlyAtDeadline() throws Exception {
-        Device device = login();
+        Credentials device = login();
         for (int i = 0; i < 4; i++) {
             clock.advance(Duration.ofDays(6));
             device = rotate(device);
@@ -158,7 +134,7 @@ class TokenIntegrationTest {
 
     @Test
     void slidingExpiryIsStrictAndRevocationCommitsDespiteUnauthorizedResponse() throws Exception {
-        Device device = login();
+        Credentials device = login();
         clock.advance(Duration.ofDays(7));
         refresh(device.refresh()).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("session_expired"));
         assertThat(revoked(device.id())).isTrue();
@@ -166,13 +142,13 @@ class TokenIntegrationTest {
 
     @Test
     void previousTokenWithinGraceDoesNotRotateOrExtendWindow() throws Exception {
-        Device original = login();
-        Device winner = rotate(original);
+        Credentials original = login();
+        Credentials winner = rotate(original);
         Instant deadline = instant("previous_token_expires_at", original.id());
         clock.advance(Duration.ofSeconds(4));
         var duplicate = refresh(original.refresh()).andExpect(status().isOk())
                 .andExpect(header().doesNotExist("Set-Cookie")).andReturn();
-        Device duplicateAccess = from(duplicate, winner.refresh());
+        Credentials duplicateAccess = from(duplicate, winner.refresh());
         me(duplicateAccess).andExpect(status().isOk());
         assertThat(instant("previous_token_expires_at", original.id())).isEqualTo(deadline);
         assertThat(jdbc.queryForObject("SELECT refresh_token_hash FROM user_sessions", String.class))
@@ -185,10 +161,10 @@ class TokenIntegrationTest {
     }
 
     @Test
-    void olderTokenHistoryDetectsTheftWithoutRevokingAnotherDevice() throws Exception {
-        Device stolen = login();
-        Device other = login();
-        Device current = rotate(rotate(stolen));
+    void olderTokenHistoryDetectsTheftWithoutRevokingAnotherSession() throws Exception {
+        Credentials stolen = login();
+        Credentials other = login();
+        Credentials current = rotate(rotate(stolen));
         clock.advance(Duration.ofSeconds(6));
         refresh(stolen.refresh()).andExpect(status().isUnauthorized());
         me(current).andExpect(status().isUnauthorized());
@@ -198,10 +174,10 @@ class TokenIntegrationTest {
 
     @Test
     void overlappingRotationsPreserveEachConsumedTokensOriginalGraceDeadline() throws Exception {
-        Device original = login();
-        Device first = rotate(original);
+        Credentials original = login();
+        Credentials first = rotate(original);
         clock.advance(Duration.ofSeconds(1));
-        Device second = rotate(first);
+        Credentials second = rotate(first);
         clock.advance(Duration.ofSeconds(2));
         refresh(original.refresh()).andExpect(status().isOk()).andExpect(header().doesNotExist("Set-Cookie"));
         clock.set(START.plusSeconds(5));
@@ -211,7 +187,7 @@ class TokenIntegrationTest {
 
     @Test
     void concurrentRefreshesReturnAccessButOnlyOneRotatesTheCookie() throws Exception {
-        Device original = login();
+        Credentials original = login();
         var ready = new CountDownLatch(2);
         var start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {
@@ -228,7 +204,7 @@ class TokenIntegrationTest {
             assertThat(results).allMatch(result -> result.getResponse().getStatus() == 200);
             var winners = results.stream().filter(result -> result.getResponse().getCookie(AuthCookies.REFRESH) != null).toList();
             assertThat(winners).hasSize(1);
-            Device winner = from(winners.getFirst(), null);
+            Credentials winner = from(winners.getFirst(), null);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM refresh_token_history", Integer.class)).isEqualTo(1);
             assertThat(revoked(original.id())).isFalse();
             for (var result : results) {
@@ -240,16 +216,16 @@ class TokenIntegrationTest {
 
     @Test
     void expiredAccessDoesNotPreventRefresh() throws Exception {
-        Device device = login();
+        Credentials device = login();
         clock.advance(Duration.ofMinutes(10));
         me(device).andExpect(status().isUnauthorized());
         me(rotate(device)).andExpect(status().isOk());
     }
 
     @Test
-    void currentLogoutRevokesOnlyThatDeviceAndIsIdempotent() throws Exception {
-        Device first = login();
-        Device second = login();
+    void currentLogoutRevokesOnlyThatSessionAndIsIdempotent() throws Exception {
+        Credentials first = login();
+        Credentials second = login();
         mvc.perform(withCsrf("/api/auth/logout", first.refresh()).header("Authorization", bearer(first)))
                 .andExpect(status().isNoContent()).andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
         me(first).andExpect(status().isUnauthorized());
@@ -262,8 +238,8 @@ class TokenIntegrationTest {
 
     @Test
     void authenticatedSessionTakesPrecedenceOverMismatchedRefreshCookie() throws Exception {
-        Device first = login();
-        Device second = login();
+        Credentials first = login();
+        Credentials second = login();
         mvc.perform(withCsrf("/api/auth/logout", second.refresh()).header("Authorization", bearer(first)))
                 .andExpect(status().isNoContent());
         assertThat(revoked(first.id())).isTrue();
@@ -273,7 +249,7 @@ class TokenIntegrationTest {
 
     @Test
     void cookieOnlyLogoutWorksAfterAccessExpiry() throws Exception {
-        Device device = login();
+        Credentials device = login();
         clock.advance(Duration.ofMinutes(11));
         mvc.perform(withCsrf("/api/auth/logout", device.refresh())).andExpect(status().isNoContent());
         refresh(device.refresh()).andExpect(status().isUnauthorized());
@@ -281,61 +257,9 @@ class TokenIntegrationTest {
     }
 
     @Test
-    void logoutAllRevokesOwnDevicesButNotAnotherUsersDevices() throws Exception {
-        Device first = login();
-        Device second = login();
-        Device other = login("another", CHROME, "192.0.2.20");
-        mvc.perform(post("/api/auth/logout-all").header("Authorization", bearer(first)))
-                .andExpect(status().isNoContent()).andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
-        me(first).andExpect(status().isUnauthorized());
-        me(second).andExpect(status().isUnauthorized());
-        refresh(first.refresh()).andExpect(status().isUnauthorized());
-        refresh(second.refresh()).andExpect(status().isUnauthorized());
-        me(other).andExpect(status().isOk());
-        rotate(other);
-    }
-
-    @Test
-    void logoutAllAndConcurrentRefreshLeaveNoUsableOwnCredentials() throws Exception {
-        Device device = login();
-        var start = new CountDownLatch(1);
-        try (var executor = Executors.newFixedThreadPool(2)) {
-            var refreshing = executor.submit(() -> { start.await(); return refresh(device.refresh()).andReturn(); });
-            var loggingOut = executor.submit(() -> { start.await(); return mvc.perform(post("/api/auth/logout-all")
-                    .header("Authorization", bearer(device))).andReturn(); });
-            start.countDown();
-            var refreshed = refreshing.get(15, TimeUnit.SECONDS);
-            assertThat(refreshed.getResponse().getStatus()).isIn(200, 401);
-            assertThat(loggingOut.get(15, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(204);
-            me(device).andExpect(status().isUnauthorized());
-            if (refreshed.getResponse().getStatus() == 200) {
-                Device issued = from(refreshed, null);
-                me(issued).andExpect(status().isUnauthorized());
-                refresh(issued.refresh()).andExpect(status().isUnauthorized());
-            }
-        }
-    }
-
-    @Test
-    void activeDeviceListExcludesExpiredAndRevokedSessions() throws Exception {
-        Device expired = login();
-        Device live = login();
-        Device revoked = login();
-        mvc.perform(withCsrf("/api/auth/logout", revoked.refresh())).andExpect(status().isNoContent());
-        clock.advance(Duration.ofDays(6));
-        live = rotate(live);
-        clock.advance(Duration.ofDays(2));
-        live = rotate(live);
-        mvc.perform(get("/api/auth/sessions").header("Authorization", bearer(live)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(live.id().toString())).andExpect(jsonPath("$[0].isCurrent").value(true));
-        assertThat(expired.id()).isNotEqualTo(live.id());
-    }
-
-    @Test
     void cleanupDeletesRevokedRowsAndHistoryWithoutResurrectingAccessJwt() throws Exception {
-        Device first = rotate(login());
-        Device second = login();
+        Credentials first = rotate(login());
+        Credentials second = login();
         mvc.perform(withCsrf("/api/auth/logout", first.refresh())).andExpect(status().isNoContent());
         cleanup.cleanup();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_sessions", Integer.class)).isEqualTo(1);
@@ -347,16 +271,6 @@ class TokenIntegrationTest {
         cleanup.cleanup();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_sessions", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM revoked_sessions", Integer.class)).isZero();
-    }
-
-    @Test
-    void deviceMetadataDoesNotTrustSpoofedForwardingHeaders() throws Exception {
-        String code = createHandoff("session-test");
-        var result = mvc.perform(complete(code).header("User-Agent", CHROME).header("X-Forwarded-For", "203.0.113.99")
-                .with(request -> { request.setRemoteAddr("192.0.2.10"); return request; })).andExpect(status().isOk()).andReturn();
-        Device device = from(result, null);
-        assertThat(jdbc.queryForObject("SELECT ip_address FROM user_sessions WHERE id = ?", String.class, device.id()))
-                .isEqualTo("192.0.2.10");
     }
 
     @Test
@@ -373,7 +287,7 @@ class TokenIntegrationTest {
 
     @Test
     void cookieEndpointsRejectFormCsrfTokensWithoutTheRequiredHeader() throws Exception {
-        Device device = login();
+        Credentials device = login();
         var response = mvc.perform(get("/api/auth/csrf")).andReturn().getResponse();
         String token = JsonPath.read(response.getContentAsString(), "$.token");
         String parameter = JsonPath.read(response.getContentAsString(), "$.parameterName");
@@ -388,19 +302,14 @@ class TokenIntegrationTest {
     @Test
     void csrfAndAuthenticationFailuresAreStructuredAndDoNotCreateSessions() throws Exception {
         mvc.perform(post("/api/auth/refresh")).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
-        mvc.perform(post("/api/auth/logout-all")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/auth/sessions")).andExpect(status().isUnauthorized());
         mvc.perform(withCsrf("/api/auth/refresh")).andExpect(status().isUnauthorized())
                 .andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
         mvc.perform(withCsrf("/api/auth/refresh", new Cookie(AuthCookies.REFRESH, "invalid"))).andExpect(status().isUnauthorized());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_sessions", Integer.class)).isZero();
     }
 
-    private Device login() throws Exception { return login("session-test", CHROME, "192.0.2.1"); }
-    private Device login(String account, String agent, String ip) throws Exception {
-        var result = mvc.perform(complete(createHandoff(account)).header("User-Agent", agent)
-                .with(request -> { request.setRemoteAddr(ip); return request; })).andExpect(status().isOk()).andReturn();
-        return from(result, null);
+    private Credentials login() throws Exception {
+        return from(mvc.perform(complete(createHandoff("session-test"))).andExpect(status().isOk()).andReturn(), null);
     }
     private String createHandoff(String account) throws Exception {
         return mvc.perform(post("/internal/auth/login-handoffs").header("Authorization", "Bearer " + SECRET)
@@ -412,16 +321,16 @@ class TokenIntegrationTest {
     private MockHttpServletRequestBuilder complete(String code) {
         return post("/api/auth/login-handoffs/complete").param("code", code).cookie(new Cookie("hypertube_login_proof", PROOF));
     }
-    private Device from(MvcResult result, Cookie fallback) throws Exception {
+    private Credentials from(MvcResult result, Cookie fallback) throws Exception {
         String access = JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken");
         var claims = jwt.verify(access).orElseThrow();
         Cookie refresh = result.getResponse().getCookie(AuthCookies.REFRESH);
-        return new Device(access, refresh == null ? fallback : refresh, claims.userId(), claims.sessionId());
+        return new Credentials(access, refresh == null ? fallback : refresh, claims.userId(), claims.sessionId());
     }
-    private Device rotate(Device old) throws Exception { return from(refresh(old.refresh()).andExpect(status().isOk()).andReturn(), old.refresh()); }
+    private Credentials rotate(Credentials old) throws Exception { return from(refresh(old.refresh()).andExpect(status().isOk()).andReturn(), old.refresh()); }
     private ResultActions refresh(Cookie cookie) throws Exception { return mvc.perform(withCsrf("/api/auth/refresh", cookie)); }
-    private ResultActions me(Device device) throws Exception { return mvc.perform(get("/api/auth/me").header("Authorization", bearer(device))); }
-    private String bearer(Device device) { return "Bearer " + device.access(); }
+    private ResultActions me(Credentials device) throws Exception { return mvc.perform(get("/api/auth/me").header("Authorization", bearer(device))); }
+    private String bearer(Credentials device) { return "Bearer " + device.access(); }
     private MockHttpServletRequestBuilder withCsrf(String path, Cookie... cookies) throws Exception {
         var response = mvc.perform(get("/api/auth/csrf")).andExpect(status().isOk()).andReturn().getResponse();
         String token = JsonPath.read(response.getContentAsString(), "$.token");
@@ -433,7 +342,7 @@ class TokenIntegrationTest {
         return jdbc.queryForObject("SELECT " + column + " FROM user_sessions WHERE id = ?", java.sql.Timestamp.class, id).toInstant();
     }
     private boolean revoked(UUID id) { return Boolean.TRUE.equals(jdbc.queryForObject("SELECT revoked FROM user_sessions WHERE id = ?", Boolean.class, id)); }
-    private record Device(String access, Cookie refresh, long userId, UUID id) {}
+    private record Credentials(String access, Cookie refresh, long userId, UUID id) {}
 
     @TestConfiguration(proxyBeanMethods = false)
     static class ClockConfiguration {

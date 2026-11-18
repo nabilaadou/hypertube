@@ -75,7 +75,7 @@ class TokenIntegrationTest {
     }
 
     @Test
-    void issuesBearerJwtAndSecureOpaqueRefreshCookie() throws Exception {
+    void issuesHttpOnlyAccessAndOpaqueRefreshCookies() throws Exception {
         Credentials device = login();
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM information_schema.columns WHERE table_name = 'user_sessions'
@@ -96,8 +96,20 @@ class TokenIntegrationTest {
         assertThat(device.refresh().getPath()).isEqualTo("/api/auth");
         assertThat(device.refresh().getAttribute("SameSite")).isEqualTo("Strict");
         me(device).andExpect(status().isOk());
-        mvc.perform(get("/api/auth/me").cookie(new Cookie("hypertube_access", device.access())))
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + device.access()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void handoffRequiresTheBrowserProofAndRemainsUsableAfterWrongProof() throws Exception {
+        String code = createHandoff("session-test");
+        mvc.perform(post("/api/auth/login-handoffs/complete").param("code", code))
+                .andExpect(status().isUnauthorized()).andExpect(cookie().doesNotExist(AuthCookies.ACCESS));
+        mvc.perform(post("/api/auth/login-handoffs/complete").param("code", code)
+                        .cookie(new Cookie("hypertube_login_proof", "b".repeat(64))))
+                .andExpect(status().isUnauthorized()).andExpect(cookie().doesNotExist(AuthCookies.ACCESS));
+        from(mvc.perform(complete(code)).andExpect(status().isOk()).andReturn(), null);
+        mvc.perform(complete(code)).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -130,7 +142,8 @@ class TokenIntegrationTest {
         clock.set(deadline);
         refresh(renewed.refresh()).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("session_expired"))
-                .andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
+                .andExpect(cookie().maxAge(AuthCookies.REFRESH, 0))
+                .andExpect(cookie().maxAge(AuthCookies.ACCESS, 0));
         assertThat(revoked(original.id())).isTrue();
         me(renewed).andExpect(status().isUnauthorized());
     }
@@ -197,8 +210,9 @@ class TokenIntegrationTest {
     void currentLogoutRevokesOnlyThatSessionAndIsIdempotent() throws Exception {
         Credentials first = login();
         Credentials second = login();
-        mvc.perform(withCsrf("/api/auth/logout", first.refresh()).header("Authorization", bearer(first)))
-                .andExpect(status().isNoContent()).andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
+        mvc.perform(withCsrf("/api/auth/logout", first.refresh()).cookie(new Cookie(AuthCookies.ACCESS, first.access())))
+                .andExpect(status().isNoContent()).andExpect(cookie().maxAge(AuthCookies.REFRESH, 0))
+                .andExpect(cookie().maxAge(AuthCookies.ACCESS, 0));
         me(first).andExpect(status().isUnauthorized());
         refresh(first.refresh()).andExpect(status().isUnauthorized());
         me(second).andExpect(status().isOk());
@@ -211,7 +225,7 @@ class TokenIntegrationTest {
     void authenticatedSessionTakesPrecedenceOverMismatchedRefreshCookie() throws Exception {
         Credentials first = login();
         Credentials second = login();
-        mvc.perform(withCsrf("/api/auth/logout", second.refresh()).header("Authorization", bearer(first)))
+        mvc.perform(withCsrf("/api/auth/logout", second.refresh()).cookie(new Cookie(AuthCookies.ACCESS, first.access())))
                 .andExpect(status().isNoContent());
         assertThat(revoked(first.id())).isTrue();
         assertThat(revoked(second.id())).isFalse();
@@ -274,7 +288,8 @@ class TokenIntegrationTest {
     void csrfAndAuthenticationFailuresAreStructuredAndDoNotCreateSessions() throws Exception {
         mvc.perform(post("/api/auth/refresh")).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("forbidden"));
         mvc.perform(withCsrf("/api/auth/refresh")).andExpect(status().isUnauthorized())
-                .andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
+                .andExpect(cookie().maxAge(AuthCookies.REFRESH, 0))
+                .andExpect(cookie().maxAge(AuthCookies.ACCESS, 0));
         mvc.perform(withCsrf("/api/auth/refresh", new Cookie(AuthCookies.REFRESH, "invalid"))).andExpect(status().isUnauthorized());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_sessions", Integer.class)).isZero();
     }
@@ -293,15 +308,21 @@ class TokenIntegrationTest {
         return post("/api/auth/login-handoffs/complete").param("code", code).cookie(new Cookie("hypertube_login_proof", PROOF));
     }
     private Credentials from(MvcResult result, Cookie fallback) throws Exception {
-        String access = JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken");
+        assertThat(JsonPath.<java.util.Map<String, Object>>read(result.getResponse().getContentAsString(), "$")).doesNotContainKeys("accessToken", "refreshToken", "tokenType");
+        Cookie accessCookie = result.getResponse().getCookie(AuthCookies.ACCESS);
+        assertThat(accessCookie).isNotNull();
+        assertThat(accessCookie.isHttpOnly()).isTrue();
+        assertThat(accessCookie.getSecure()).isTrue();
+        assertThat(accessCookie.getPath()).isEqualTo("/");
+        assertThat(accessCookie.getAttribute("SameSite")).isEqualTo("Strict");
+        String access = accessCookie.getValue();
         var claims = jwt.verify(access).orElseThrow();
         Cookie refresh = result.getResponse().getCookie(AuthCookies.REFRESH);
         return new Credentials(access, refresh == null ? fallback : refresh, claims.userId(), claims.sessionId());
     }
     private Credentials rotate(Credentials old) throws Exception { return from(refresh(old.refresh()).andExpect(status().isOk()).andReturn(), old.refresh()); }
     private ResultActions refresh(Cookie cookie) throws Exception { return mvc.perform(withCsrf("/api/auth/refresh", cookie)); }
-    private ResultActions me(Credentials device) throws Exception { return mvc.perform(get("/api/auth/me").header("Authorization", bearer(device))); }
-    private String bearer(Credentials device) { return "Bearer " + device.access(); }
+    private ResultActions me(Credentials device) throws Exception { return mvc.perform(get("/api/auth/me").cookie(new Cookie(AuthCookies.ACCESS, device.access()))); }
     private MockHttpServletRequestBuilder withCsrf(String path, Cookie... cookies) throws Exception {
         var response = mvc.perform(get("/api/auth/csrf")).andExpect(status().isOk()).andReturn().getResponse();
         String token = JsonPath.read(response.getContentAsString(), "$.token");

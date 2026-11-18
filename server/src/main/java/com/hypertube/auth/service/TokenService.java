@@ -114,8 +114,8 @@ public class TokenService {
             throw new AuthException("session_expired", "The session is expired", true);
         }
         String accessToken = jwt.issue(user.id(), session.getId(), UUID.randomUUID(), now, expiry);
-        return new AuthTokens(new AuthResponse(accessToken, "Bearer", Duration.between(now, expiry).toSeconds(), expiry, user),
-                refreshToken, Duration.between(now, session.getExpiresAt()));
+        return new AuthTokens(new AuthResponse(Duration.between(now, expiry).toSeconds(), expiry, user),
+                accessToken, refreshToken, Duration.between(now, session.getExpiresAt()));
     }
 
     private void revoke(UserSession session) {

@@ -90,33 +90,33 @@ Run `make up` again after changing `.env`. Use the same browser-facing hostname 
 
 ## Backend JWT authentication
 
-Handoff completion creates a `user_sessions` row for refresh and logout and returns this JSON shape:
+Handoff completion creates a `user_sessions` row, sets both credentials as HttpOnly cookies, and returns only user and expiry metadata:
 
 ```json
 {
-  "accessToken": "<signed JWT>",
-  "tokenType": "Bearer",
   "expiresIn": 600,
   "expiresAt": "<UTC timestamp>",
   "user": { "id": 1, "provider": "google", "providerUserId": "...", "displayName": "...", "email": "..." }
 }
 ```
 
-Send the access token as `Authorization: Bearer <accessToken>`. Access cookies are ignored and old access cookies are deleted when issuing new credentials. JWTs use HS256 with a dedicated signing key for this single-service backend. They contain `sub`, `sid`, `jti`, `iat`, `exp`, issuer, audience, and access-token type. Signature, algorithm, type, timestamps, issuer, audience, and identifiers are validated. There is no servlet `HttpSession` or `JSESSIONID`.
+The backend sets the JWT in the HttpOnly, host-only `hypertube_access` cookie with `Path=/` and `SameSite=Strict`. The browser sends it automatically on matching backend requests; JavaScript cannot read it, and no authentication token appears in the JSON response. The authentication filter reads only this cookie; Bearer headers are not accepted for user authentication. Use the same browser-facing hostname and scheme for sign-in and the API; cross-origin fetch requests also need `credentials: "include"` and an allowed origin. JWTs use HS256 with a dedicated signing key for this single-service backend. They contain `sub`, `sid`, `jti`, `iat`, `exp`, issuer, audience, and access-token type. Signature, algorithm, type, timestamps, issuer, audience, and identifiers are validated. There is no servlet `HttpSession` or `JSESSIONID`.
+
+The temporary HttpOnly `hypertube_login_proof` cookie binds the one-time login handoff code to the browser that completed OAuth. The Ruby callback generates a random proof and sends only its hash to Spring Boot; completion must present the matching proof cookie and code. A leaked handoff code alone cannot sign in another browser. This cookie is scoped to `/api/auth/login-handoffs/complete`, has a 120-second cookie lifetime, and is deleted after successful completion.
 
 Refresh credentials are random 256-bit Base64URL strings. Only SHA-256 hashes are stored in PostgreSQL. The `hypertube_refresh` cookie is HttpOnly, host-only, `SameSite=Strict`, and scoped to `/api/auth`. Secure cookies are enabled by default. The local `.env.example` explicitly sets `AUTH_COOKIE_SECURE=false` for HTTP development; use `true` with HTTPS. Keep `AUTH_JWT_SECRET` stable across restarts and shared by backend instances. Generate at least 32 random bytes with `openssl rand -base64 32`. `AUTH_JWT_ISSUER` defaults to `hypertube` and `AUTH_JWT_AUDIENCE` to `hypertube-api`. The Ruby provider service continues to use its separate `AUTH_SESSION_SECRET`.
 
 | Endpoint | Behavior |
 | --- | --- |
-| `POST /api/auth/login-handoffs/complete` | Consumes the browser proof and handoff, saves the user, creates an authentication session, and returns access JSON plus the refresh cookie in one transaction. |
-| `GET /api/auth/me` | Returns the user profile for the Bearer token. |
+| `POST /api/auth/login-handoffs/complete` | Consumes the browser proof and handoff, saves the user, creates an authentication session, and sets access and refresh cookies plus user/expiry JSON in one transaction. |
+| `GET /api/auth/me` | Returns the user profile authenticated by the access cookie. |
 | `GET /api/auth/csrf` | Sets `XSRF-TOKEN` and returns its `headerName` and `token`. |
-| `POST /api/auth/refresh` | Uses the refresh cookie without requiring a valid access token, rotates refresh credentials, and returns a new access token. |
-| `POST /api/auth/logout` | Revokes only the current session and clears its refresh cookie; returns `204` even when already signed out. A valid Bearer token's `sid` takes precedence over a mismatched cookie. |
+| `POST /api/auth/refresh` | Uses the refresh cookie without requiring a valid access token, rotates refresh credentials, and sets fresh access and refresh cookies without extending the session deadline. |
+| `POST /api/auth/logout` | Revokes only the current session and clears both credential cookies; returns `204` even when already signed out. A valid access cookie's `sid` takes precedence over a mismatched refresh cookie. |
 
-For refresh and logout, retain the cookie from `GET /api/auth/csrf` and send the response's `token` in the `X-XSRF-TOKEN` header. Missing or invalid CSRF headers return `403`; form parameters are not accepted for these cookie endpoints. Other protected API requests use the explicit Bearer header. The health endpoint remains public. Authentication failures use centralized Problem Detail responses; invalid refresh credentials return `401` and clear the refresh cookie.
+For all state-changing API requests, retain the cookie from `GET /api/auth/csrf` and send the response's `token` in the `X-XSRF-TOKEN` header. Missing or invalid CSRF headers return `403`; form parameters are not accepted. Only internal handoff creation (protected by its server secret) and handoff completion (protected by its browser proof) are exempt from CSRF checks. The health endpoint remains public. Authentication failures use centralized Problem Detail responses; invalid refresh credentials return `401` and clear both credential cookies.
 
-Access lasts `AUTH_ACCESS_TTL` (default `10m`). A refresh session expires at a fixed `AUTH_REFRESH_TTL` (default `30d`) after login. This timestamp is set once and never extended. Replace the old `AUTH_SLIDING_TTL`, `AUTH_ABSOLUTE_TTL`, and `AUTH_REFRESH_GRACE` settings with `AUTH_REFRESH_TTL`. Every successful refresh replaces the refresh token and returns a new JWT, while the replacement cookie's lifetime is only the time remaining until the original expiry. Access JWTs are capped at that same deadline.
+Access lasts `AUTH_ACCESS_TTL` (default `10m`). A refresh session expires at a fixed `AUTH_REFRESH_TTL` (default `30d`) after login. This timestamp is set once and never extended. Replace the old `AUTH_SLIDING_TTL`, `AUTH_ABSOLUTE_TTL`, and `AUTH_REFRESH_GRACE` settings with `AUTH_REFRESH_TTL`. Every successful refresh replaces the refresh token and sets a new access JWT cookie, while the replacement cookie's lifetime is only the time remaining until the original expiry. Access JWTs are capped at that same deadline.
 
 Refresh rotation locks the session pessimistically and stores the consumed token's hash for replay detection. A consumed token cannot be used again; replay revokes the session. The client must serialize refresh requests because duplicate uses of the same token are rejected. There is no sliding deadline or grace window. Ordinary rotation leaves already-issued JWTs valid until their ten-minute expiry; logout or replay invalidates the session's JWTs immediately through a denylist.
 

@@ -25,9 +25,7 @@ public class AuthExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(AuthenticationException.class)
     ResponseEntity<ProblemDetail> unauthenticated(AuthenticationException exception) {
-        var headers = new HttpHeaders();
-        headers.set(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
-        return problem(HttpStatus.UNAUTHORIZED, "unauthorized", "A valid Bearer access token is required", headers);
+        return problem(HttpStatus.UNAUTHORIZED, "unauthorized", "A valid access-token cookie is required", new HttpHeaders());
     }
 
     @ExceptionHandler(AccessDeniedException.class)

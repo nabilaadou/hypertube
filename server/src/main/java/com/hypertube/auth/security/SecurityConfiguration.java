@@ -61,11 +61,8 @@ public class SecurityConfiguration {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokens).csrfTokenRequestHandler(headerOnlyCsrf)
-                        .requireCsrfProtectionMatcher(request -> {
-                            String path = request.getRequestURI().substring(request.getContextPath().length());
-                            return java.util.Set.of("/api/auth/refresh", "/api/auth/logout").contains(path)
-                                    && !java.util.Set.of("GET", "HEAD", "OPTIONS", "TRACE").contains(request.getMethod());
-                        }))
+                        // These handoffs use the internal shared secret and browser proof, respectively.
+                        .ignoringRequestMatchers("/internal/auth/login-handoffs", "/api/auth/login-handoffs/complete"))
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health", "/api/auth/csrf").permitAll()

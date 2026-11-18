@@ -1,20 +1,30 @@
 package com.hypertube.auth.controller;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 
 import com.hypertube.auth.schema.OAuthIdentity;
 import com.hypertube.auth.schema.UserProfile;
 import com.hypertube.auth.service.AuthService;
+import com.hypertube.auth.service.SessionService;
+import com.hypertube.auth.security.SecurityConfiguration;
+import com.hypertube.auth.security.SessionCookies;
+import com.hypertube.auth.security.SessionTokens;
+import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,11 +33,13 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(AuthController.class)
+@WebMvcTest(controllers = AuthController.class, properties = "hypertube.auth.session.secure-cookies=true")
+@Import({SecurityConfiguration.class, SessionCookies.class})
 class AuthControllerTest {
     private static final UUID CODE = UUID.fromString("7d87e5dc-cf71-421f-9e7c-853155898d67");
     private static final String PROOF = "a".repeat(64);
@@ -47,6 +59,14 @@ class AuthControllerTest {
 
     @MockitoBean
     private AuthService auth;
+
+    @MockitoBean
+    private SessionService sessions;
+
+    private static final UserProfile USER = new UserProfile(
+            17L, "google", "provider-user-123", "Test User", "test@example.com");
+    private static final SessionTokens TOKENS = new SessionTokens(USER, "a".repeat(43), "b".repeat(43),
+            Duration.ofMinutes(15), Duration.ofDays(30));
 
     @Test
     void createsHandoffFromAuthorizedIdentity() throws Exception {
@@ -86,9 +106,8 @@ class AuthControllerTest {
     }
 
     @Test
-    void completesBrowserPostAndReturnsProfileWithoutCreatingSession() throws Exception {
-        when(auth.finishLogin(CODE, PROOF)).thenReturn(Optional.of(
-                new UserProfile(17L, "google", "provider-user-123", "Test User", "test@example.com")));
+    void completesBrowserPostAndIssuesSessionCookies() throws Exception {
+        when(sessions.completeLogin(CODE, PROOF)).thenReturn(Optional.of(TOKENS));
 
         var result = mvc.perform(post("/api/auth/login-handoffs/complete")
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
@@ -102,20 +121,33 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.providerUserId").value("provider-user-123"))
                 .andExpect(jsonPath("$.displayName").value("Test User"))
                 .andExpect(jsonPath("$.email").value("test@example.com"))
+                .andExpect(jsonPath("$.accessToken").doesNotExist())
+                .andExpect(cookie().value(SessionCookies.ACCESS, TOKENS.accessToken()))
+                .andExpect(cookie().httpOnly(SessionCookies.ACCESS, true))
+                .andExpect(cookie().secure(SessionCookies.ACCESS, true))
+                .andExpect(cookie().path(SessionCookies.ACCESS, "/"))
+                .andExpect(cookie().maxAge(SessionCookies.ACCESS, 900))
+                .andExpect(cookie().value(SessionCookies.REFRESH, TOKENS.refreshToken()))
+                .andExpect(cookie().httpOnly(SessionCookies.REFRESH, true))
+                .andExpect(cookie().secure(SessionCookies.REFRESH, true))
+                .andExpect(cookie().path(SessionCookies.REFRESH, "/api/auth"))
+                .andExpect(cookie().maxAge("hypertube_login_proof", 0))
                 .andReturn();
 
         assertNull(result.getRequest().getSession(false));
-        assertNull(result.getResponse().getHeader("Set-Cookie"));
+        assertEquals("Lax", result.getResponse().getCookie(SessionCookies.ACCESS).getAttribute("SameSite"));
+        assertTrue(result.getResponse().getHeaders("Set-Cookie").stream().noneMatch(value -> value.contains("JSESSIONID")));
     }
 
     @Test
     void rejectsInvalidOrConsumedHandoff() throws Exception {
-        when(auth.finishLogin(CODE, PROOF)).thenReturn(Optional.empty());
+        when(sessions.completeLogin(CODE, PROOF)).thenReturn(Optional.empty());
 
         mvc.perform(post("/api/auth/login-handoffs/complete")
                         .param("code", CODE.toString())
                         .cookie(new Cookie("hypertube_login_proof", PROOF)))
                 .andExpect(status().isUnauthorized())
+                .andExpect(cookie().doesNotExist(SessionCookies.ACCESS))
                 .andExpect(header().string("Cache-Control", "no-store"));
     }
 
@@ -125,5 +157,72 @@ class AuthControllerTest {
                 .andExpect(status().isMethodNotAllowed());
 
         verifyNoInteractions(auth);
+    }
+
+    @Test
+    void refreshesUsingTheRefreshCookieAndCsrfToken() throws Exception {
+        when(sessions.refresh("old-refresh")).thenReturn(Optional.of(TOKENS));
+        mvc.perform(postWithCsrf("/api/auth/refresh")
+                        .cookie(new Cookie(SessionCookies.REFRESH, "old-refresh")))
+                .andExpect(status().isOk())
+                .andExpect(cookie().value(SessionCookies.ACCESS, TOKENS.accessToken()))
+                .andExpect(cookie().value(SessionCookies.REFRESH, TOKENS.refreshToken()))
+                .andExpect(jsonPath("$.id").value(17));
+    }
+
+    @Test
+    void clearsCookiesWhenRefreshIsInvalid() throws Exception {
+        mvc.perform(postWithCsrf("/api/auth/refresh"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(cookie().maxAge(SessionCookies.ACCESS, 0))
+                .andExpect(cookie().maxAge(SessionCookies.REFRESH, 0));
+    }
+
+    @Test
+    void logsOutAndClearsBothCookies() throws Exception {
+        mvc.perform(postWithCsrf("/api/auth/logout")
+                        .cookie(new Cookie(SessionCookies.ACCESS, "access"), new Cookie(SessionCookies.REFRESH, "refresh")))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(cookie().maxAge(SessionCookies.ACCESS, 0))
+                .andExpect(cookie().maxAge(SessionCookies.REFRESH, 0));
+        verify(sessions).logout("access", "refresh");
+    }
+
+    @Test
+    void rejectsRefreshAndLogoutWithoutCsrfProtection() throws Exception {
+        mvc.perform(post("/api/auth/refresh")).andExpect(status().isForbidden());
+        mvc.perform(post("/api/auth/logout")).andExpect(status().isForbidden());
+        verifyNoInteractions(sessions);
+    }
+
+    @Test
+    void exposesCsrfTokenWithoutCreatingServletSession() throws Exception {
+        var result = mvc.perform(get("/api/auth/csrf"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.headerName").value("X-XSRF-TOKEN"))
+                .andExpect(cookie().exists("XSRF-TOKEN"))
+                .andReturn();
+        assertNull(result.getRequest().getSession(false));
+    }
+
+    @Test
+    void authenticatesAccessCookieForCurrentUser() throws Exception {
+        when(sessions.authenticate(TOKENS.accessToken())).thenReturn(Optional.of(USER));
+        mvc.perform(get("/api/auth/me").cookie(new Cookie(SessionCookies.ACCESS, TOKENS.accessToken())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(17));
+    }
+
+    @Test
+    void rejectsMissingOrInvalidAccessCookies() throws Exception {
+        mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(new Cookie(SessionCookies.ACCESS, "invalid")))
+                .andExpect(status().isUnauthorized());
+    }
+
+    private MockHttpServletRequestBuilder postWithCsrf(String path) throws Exception {
+        var result = mvc.perform(get("/api/auth/csrf")).andExpect(status().isOk()).andReturn();
+        String token = JsonPath.read(result.getResponse().getContentAsString(), "$.token");
+        return post(path).cookie(result.getResponse().getCookie("XSRF-TOKEN")).header("X-XSRF-TOKEN", token);
     }
 }

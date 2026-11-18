@@ -9,7 +9,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -27,7 +26,7 @@ public class AccessTokenAuthenticationFilter extends OncePerRequestFilter {
                 tokens.authenticate(header.substring(7)).ifPresent(principal -> {
                     var context = SecurityContextHolder.createEmptyContext();
                     context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(principal, null,
-                            principal.authorities().stream().map(SimpleGrantedAuthority::new).toList()));
+                            Collections.emptyList()));
                     SecurityContextHolder.setContext(context);
                 });
             }

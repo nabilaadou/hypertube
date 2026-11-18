@@ -2,7 +2,6 @@ package com.hypertube.auth.controller;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import com.hypertube.auth.exception.AuthException;
@@ -41,7 +40,7 @@ class AuthControllerTest {
     private static final UUID CODE = UUID.fromString("7d87e5dc-cf71-421f-9e7c-853155898d67");
     private static final String PROOF = "a".repeat(64);
     private static final UserProfile USER = new UserProfile(17L, "google", "user-123", "Test User", "test@example.com");
-    private static final SessionPrincipal PRINCIPAL = new SessionPrincipal(17L, CODE, List.of("ROLE_USER"));
+    private static final SessionPrincipal PRINCIPAL = new SessionPrincipal(17L, CODE);
     private static final AuthTokens TOKENS = new AuthTokens(new AuthResponse("signed.jwt.value", "Bearer", 600,
             Instant.parse("2026-11-18T12:10:00Z"), USER), "b".repeat(43), Duration.ofDays(7));
 

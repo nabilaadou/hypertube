@@ -30,11 +30,12 @@ class JwtServiceTest {
 
     @Test
     void signsAndVerifiesAccessJwtClaims() {
-        String token = jwt.issue(17, SESSION, TOKEN, List.of("ROLE_USER"), NOW, NOW.plusSeconds(900));
+        String token = jwt.issue(17, SESSION, TOKEN, NOW, NOW.plusSeconds(900));
         var claims = jwt.verify(token).orElseThrow();
         assertThat(token.split("\\.")).hasSize(3);
+        String payload = new String(Base64.getUrlDecoder().decode(token.split("\\.")[1]), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(payload).doesNotContain("\"authorities\"", "\"roles\"");
         assertThat(claims.userId()).isEqualTo(17);
-        assertThat(claims.authorities()).containsExactly("ROLE_USER");
         assertThat(claims.sessionId()).isEqualTo(SESSION);
         assertThat(claims.tokenId()).isEqualTo(TOKEN);
         assertThat(claims.expiresAt()).isEqualTo(NOW.plusSeconds(900));
@@ -43,13 +44,13 @@ class JwtServiceTest {
     @Test
     void rejectsExpiredTokensIncludingExactExpiration() {
         for (Instant expiry : List.of(NOW.minusSeconds(1), NOW)) {
-            assertThat(jwt.verify(jwt.issue(17, SESSION, TOKEN, List.of("ROLE_USER"), NOW.minusSeconds(60), expiry))).isEmpty();
+            assertThat(jwt.verify(jwt.issue(17, SESSION, TOKEN, NOW.minusSeconds(60), expiry))).isEmpty();
         }
     }
 
     @Test
     void rejectsTamperingWrongSigningKeyAndUnsignedTokens() {
-        String token = jwt.issue(17, SESSION, TOKEN, List.of("ROLE_USER"), NOW, NOW.plusSeconds(900));
+        String token = jwt.issue(17, SESSION, TOKEN, NOW, NOW.plusSeconds(900));
         String[] parts = token.split("\\.");
         String payload = new String(Base64.getUrlDecoder().decode(parts[1]), java.nio.charset.StandardCharsets.UTF_8);
         String tampered = Base64.getUrlEncoder().withoutPadding().encodeToString(
@@ -77,9 +78,6 @@ class JwtServiceTest {
                 validClaims().claim("token_use", "refresh").build(),
                 validClaims().subject("not-a-user-id").build(),
                 validClaims().subject("-1").build(),
-                validClaims().claim("authorities", List.of()).build(),
-                validClaims().claim("authorities", List.of("INVALID")).build(),
-                validClaims().claims(claims -> claims.remove("authorities")).build(),
                 validClaims().id("not-a-uuid").build(),
                 validClaims().claim("sid", "not-a-uuid").build(),
                 validClaims().claims(claims -> claims.remove("sid")).build(),
@@ -114,7 +112,7 @@ class JwtServiceTest {
     private JwtClaimsSet.Builder validClaims() {
         return JwtClaimsSet.builder().issuer("hypertube").audience(List.of("hypertube-api"))
                 .subject("17").id(TOKEN.toString()).issuedAt(NOW).expiresAt(NOW.plusSeconds(900))
-                .claim("sid", SESSION.toString()).claim("token_use", "access").claim("authorities", List.of("ROLE_USER"));
+                .claim("sid", SESSION.toString()).claim("token_use", "access");
     }
 
     private String sign(JwtClaimsSet claims, MacAlgorithm algorithm, String type, byte[] key) {

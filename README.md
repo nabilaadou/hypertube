@@ -102,7 +102,7 @@ Handoff completion creates a `user_sessions` row for refresh and logout and retu
 }
 ```
 
-Send the access token as `Authorization: Bearer <accessToken>`. Access cookies are ignored and old access cookies are deleted when issuing new credentials. JWTs use HS256 with a dedicated signing key for this single-service backend. They contain `sub`, `sid`, `jti`, `authorities`, `iat`, `exp`, issuer, audience, and access-token type. OAuth users currently receive `ROLE_USER`. Signature, algorithm, type, timestamps, issuer, audience, identifiers, and authorities are validated. There is no servlet `HttpSession` or `JSESSIONID`.
+Send the access token as `Authorization: Bearer <accessToken>`. Access cookies are ignored and old access cookies are deleted when issuing new credentials. JWTs use HS256 with a dedicated signing key for this single-service backend. They contain `sub`, `sid`, `jti`, `iat`, `exp`, issuer, audience, and access-token type. Signature, algorithm, type, timestamps, issuer, audience, and identifiers are validated. There is no servlet `HttpSession` or `JSESSIONID`.
 
 Refresh credentials are random 256-bit Base64URL strings. Only SHA-256 hashes are stored in PostgreSQL. The `hypertube_refresh` cookie is HttpOnly, host-only, `SameSite=Strict`, and scoped to `/api/auth`. Secure cookies are enabled by default. The local `.env.example` explicitly sets `AUTH_COOKIE_SECURE=false` for HTTP development; use `true` with HTTPS. Keep `AUTH_JWT_SECRET` stable across restarts and shared by backend instances. Generate at least 32 random bytes with `openssl rand -base64 32`. `AUTH_JWT_ISSUER` defaults to `hypertube` and `AUTH_JWT_AUDIENCE` to `hypertube-api`. The Ruby provider service continues to use its separate `AUTH_SESSION_SECRET`.
 

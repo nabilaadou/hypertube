@@ -86,7 +86,9 @@ class TokenIntegrationTest {
         var claims = jwt.verify(device.access()).orElseThrow();
         assertThat(claims.userId()).isEqualTo(device.userId());
         assertThat(claims.sessionId()).isEqualTo(device.id());
-        assertThat(claims.authorities()).containsExactly("ROLE_USER");
+        String payload = new String(java.util.Base64.getUrlDecoder().decode(device.access().split("\\.")[1]),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(payload).doesNotContain("\"authorities\"", "\"roles\"");
         assertThat(claims.expiresAt()).isEqualTo(START.plusSeconds(600));
         assertThat(device.refresh().getValue()).hasSize(43);
         assertThat(jdbc.queryForObject("SELECT refresh_token_hash FROM user_sessions", String.class))

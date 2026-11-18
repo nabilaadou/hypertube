@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TokenService {
-    private static final List<String> USER_AUTHORITIES = List.of("ROLE_USER");
     private final AuthService auth;
     private final UserSessionRepository sessions;
     private final RefreshTokenHistoryRepository history;
@@ -65,7 +63,7 @@ public class TokenService {
     @Transactional(readOnly = true)
     public Optional<SessionPrincipal> authenticate(String accessToken) {
         return jwt.verify(accessToken).filter(claims -> !revocations.existsById(claims.sessionId()))
-                .map(claims -> new SessionPrincipal(claims.userId(), claims.sessionId(), claims.authorities()));
+                .map(claims -> new SessionPrincipal(claims.userId(), claims.sessionId()));
     }
 
     @Transactional(noRollbackFor = AuthException.class)
@@ -125,7 +123,7 @@ public class TokenService {
             revoke(session);
             throw new AuthException("session_expired", "The session is expired", true);
         }
-        String accessToken = jwt.issue(user.id(), session.getId(), UUID.randomUUID(), USER_AUTHORITIES, issuedAt, expiry);
+        String accessToken = jwt.issue(user.id(), session.getId(), UUID.randomUUID(), issuedAt, expiry);
         return new AuthTokens(new AuthResponse(accessToken, "Bearer", Duration.between(issuedAt, expiry).toSeconds(), expiry, user),
                 refreshToken, Duration.between(now, session.getSlidingExpiresAt()));
     }

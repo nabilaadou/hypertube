@@ -16,8 +16,11 @@ public class AuthCookies {
         var headers = new HttpHeaders();
         headers.add(HttpHeaders.SET_COOKIE, cookie(REFRESH, tokens.refreshToken(), "/api/auth", tokens.refreshMaxAge()));
         headers.add(HttpHeaders.SET_COOKIE, cookie(ACCESS, tokens.accessToken(), "/", Duration.ofSeconds(tokens.response().expiresIn())));
-        headers.add(HttpHeaders.SET_COOKIE, cookie("hypertube_login_proof", "", "/api/auth/login-handoffs/complete", Duration.ZERO));
         return headers;
+    }
+
+    public String clearLoginProof() {
+        return cookie("hypertube_login_proof", "", "/api/auth/login-handoffs/complete", Duration.ZERO);
     }
 
     public HttpHeaders clear() {

@@ -12,6 +12,7 @@ import com.hypertube.auth.service.TokenService;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -48,12 +49,14 @@ class AuthController {
     @PostMapping("/api/auth/login-handoffs/complete")
     ResponseEntity<AuthResponse> completeHandoff(@RequestParam UUID code,
             @CookieValue(value = "hypertube_login_proof", defaultValue = "") String proof) {
-        return signedIn(tokens.completeLogin(code, proof));
+        AuthTokens result = tokens.completeLogin(code, proof);
+        return signedIn(result).header(HttpHeaders.SET_COOKIE, cookies.clearLoginProof()).body(result.response());
     }
 
     @PostMapping("/api/auth/refresh")
     ResponseEntity<AuthResponse> refresh(@CookieValue(value = AuthCookies.REFRESH, defaultValue = "") String refreshToken) {
-        return signedIn(tokens.refresh(refreshToken));
+        AuthTokens result = tokens.refresh(refreshToken);
+        return signedIn(result).body(result.response());
     }
 
     @PostMapping("/api/auth/logout")
@@ -73,9 +76,9 @@ class AuthController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(token);
     }
 
-    private ResponseEntity<AuthResponse> signedIn(AuthTokens result) {
+    private ResponseEntity.BodyBuilder signedIn(AuthTokens result) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).headers(cookies.issue(result))
-                .header("Referrer-Policy", "no-referrer").body(result.response());
+                .header("Referrer-Policy", "no-referrer");
     }
 
     private ResponseEntity<Void> signedOut() {

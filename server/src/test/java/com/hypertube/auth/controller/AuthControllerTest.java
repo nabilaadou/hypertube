@@ -102,6 +102,7 @@ class AuthControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").doesNotExist())
                 .andExpect(cookie().value(AuthCookies.REFRESH, TOKENS.refreshToken()))
                 .andExpect(cookie().value(AuthCookies.ACCESS, TOKENS.accessToken()))
+                .andExpect(cookie().doesNotExist("hypertube_login_proof"))
                 .andExpect(jsonPath("$.refreshToken").doesNotExist());
     }
 

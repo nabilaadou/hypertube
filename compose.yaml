@@ -68,7 +68,6 @@ services:
           path: ./client/package-lock.json
 
   auth-server:
-    profiles: [auth]
     build: ./auth-server
     init: true
     ports:

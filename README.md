@@ -10,17 +10,24 @@ Install Docker with Compose 2.24 or newer and Make. From the repository root, co
 cp .env.example .env
 ```
 
-Set `POSTGRES_PASSWORD` to a local password in `.env`, then start the development stack.
+Set `POSTGRES_PASSWORD` to a local password in `.env`. Generate the two auth secrets and set their values in `.env` as well.
+
+```sh
+openssl rand -hex 64  # AUTH_SESSION_SECRET
+openssl rand -hex 32  # AUTH_HANDOFF_SECRET
+```
+
+Start the development stack.
 
 ```sh
 make up
 ```
 
-Open `http://localhost:3000`. The API is available at `http://localhost:8080/api/health`. Compose reloads Next.js when you edit the frontend and restarts Spring Boot when you edit backend source files. Changes to dependency manifests rebuild the corresponding image.
+Open `http://localhost:3000`. The API is available at `http://localhost:8080/api/health`, and the auth provider page is at `http://localhost:4567`. `make up` starts PostgreSQL, Spring Boot, Next.js, and the auth service together. Compose reloads Next.js when you edit the frontend and restarts Spring Boot when you edit backend source files. Changes to dependency manifests rebuild the corresponding image.
 
 PostgreSQL is available at `localhost:5432` from the host and `postgres:5432` from other services. The database, user, and password come from the root `.env` when the database volume is first initialized.
 
-Compose reads service settings from the root `.env`. If you already have one, add any missing settings from `.env.example`. To change a host port, edit `HYPERTUBE_CLIENT_PORT`, `HYPERTUBE_SERVER_PORT`, or `HYPERTUBE_POSTGRES_PORT` in `.env` and restart `make up`. For example, `HYPERTUBE_CLIENT_PORT=3100` serves the frontend at `http://localhost:3100`.
+Compose reads service settings from the root `.env`. If you already have one, add any missing settings from `.env.example`. To change a host port, edit `HYPERTUBE_CLIENT_PORT`, `HYPERTUBE_SERVER_PORT`, `HYPERTUBE_AUTH_PORT`, or `HYPERTUBE_POSTGRES_PORT` in `.env` and restart `make up`. For example, `HYPERTUBE_CLIENT_PORT=3100` serves the frontend at `http://localhost:3100`.
 
 Press Ctrl+C to stop the services. Run `make down` to remove the containers and network while keeping PostgreSQL data. Run `make clean` to also delete the database volume, orphaned project containers, and images built for Hypertube.
 
@@ -63,14 +70,7 @@ Open `http://localhost:3000`. The home page reports whether it can reach the API
 
 Use the root `.env` from the Docker setup above. If you have an existing `auth-server/.env`, move its values for `AUTH_BASE_URL`, `AUTH_SESSION_SECRET`, and the provider credentials into the root `.env`.
 
-Generate the two secrets.
-
-```sh
-openssl rand -hex 64  # AUTH_SESSION_SECRET
-openssl rand -hex 32  # AUTH_HANDOFF_SECRET
-```
-
-Set both secrets in `.env` along with the client ID and secret for each provider you want to test. You can configure either provider on its own.
+Add the client ID and secret for each provider you want to test to `.env`. You can configure either provider on its own. The auth service starts with `make up`; providers without credentials are shown as unconfigured on the sign-in page.
 
 Register the redirect URIs with your 42 application and Google **Web application** OAuth client. These are the URIs for the ports in `.env.example`. If Google OAuth is in testing mode, add the Google account you plan to use as a test user.
 
@@ -80,12 +80,12 @@ Register the redirect URIs with your 42 application and Google **Web application
 | Google | `http://localhost:4567/auth/google_oauth2/callback` |
 
 ```sh
-docker compose up --build auth-server
+make up
 ```
 
 Open `http://localhost:4567` and select a provider. After a successful callback, the auth service creates a handoff through `POST /internal/auth/login-handoffs`. Handoffs expire after two minutes. The browser submits the handoff to `POST /api/auth/login-handoffs/complete`, which saves or updates the user in PostgreSQL and returns their profile as JSON. The response contains the database ID, provider, provider user ID, and available name and email. Repeat sign-ins with the same provider account reuse the database ID. Application session handling is a separate implementation step.
 
-Run the Compose command again after changing `.env`. Use the same browser-facing hostname and scheme in `AUTH_BASE_URL` and `SPRING_PUBLIC_URL` so the browser can carry the login cookie to Spring Boot. The auth service starts Spring Boot and PostgreSQL as dependencies.
+Run `make up` again after changing `.env`. Use the same browser-facing hostname and scheme in `AUTH_BASE_URL` and `SPRING_PUBLIC_URL` so the browser can carry the login cookie to Spring Boot.
 
 ## Verify changes
 

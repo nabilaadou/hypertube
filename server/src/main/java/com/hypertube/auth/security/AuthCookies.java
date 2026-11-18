@@ -15,7 +15,7 @@ public class AuthCookies {
     public HttpHeaders issue(AuthTokens tokens) {
         var headers = new HttpHeaders();
         headers.add(HttpHeaders.SET_COOKIE, cookie(REFRESH, tokens.refreshToken(), "/api/auth", tokens.refreshMaxAge()));
-        headers.add(HttpHeaders.SET_COOKIE, cookie(ACCESS, tokens.accessToken(), "/", Duration.ofSeconds(tokens.response().expiresIn())));
+        headers.add(HttpHeaders.SET_COOKIE, cookie(ACCESS, tokens.accessToken(), "/", tokens.accessMaxAge()));
         return headers;
     }
 

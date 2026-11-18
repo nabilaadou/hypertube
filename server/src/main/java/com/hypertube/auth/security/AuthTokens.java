@@ -1,9 +1,11 @@
 package com.hypertube.auth.security;
 
 import java.time.Duration;
-import com.hypertube.auth.schema.AuthResponse;
+import java.time.Instant;
+import com.hypertube.auth.schema.UserProfile;
 
-public record AuthTokens(AuthResponse response, String accessToken, String refreshToken, Duration refreshMaxAge) {
+public record AuthTokens(String accessToken, String refreshToken, Duration accessMaxAge,
+                         Duration refreshMaxAge, Instant accessExpiresAt, UserProfile user) {
     @Override
-    public String toString() { return "AuthTokens[userId=" + response.user().id() + "]"; }
+    public String toString() { return "AuthTokens[userId=" + user.id() + "]"; }
 }

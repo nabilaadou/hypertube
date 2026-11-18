@@ -13,7 +13,6 @@ import com.hypertube.auth.repository.RefreshTokenHistoryRepository;
 import com.hypertube.auth.repository.RevokedSessionRepository;
 import com.hypertube.auth.repository.UserRepository;
 import com.hypertube.auth.repository.UserSessionRepository;
-import com.hypertube.auth.schema.AuthResponse;
 import com.hypertube.auth.schema.UserProfile;
 import com.hypertube.auth.security.AuthTokens;
 import com.hypertube.auth.security.JwtService;
@@ -113,8 +112,8 @@ public class TokenService {
             throw new AuthException("session_expired", "The session is expired", true);
         }
         String accessToken = jwt.issueAccessToken(user.id(), session.getId(), UUID.randomUUID(), now, expiry);
-        return new AuthTokens(new AuthResponse(Duration.between(now, expiry).toSeconds(), expiry, user),
-                accessToken, refreshToken, Duration.between(now, session.getExpiresAt()));
+        return new AuthTokens(accessToken, refreshToken, Duration.between(now, expiry),
+                Duration.between(now, session.getExpiresAt()), expiry, user);
     }
 
     private void revoke(UserSession session) {

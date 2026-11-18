@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import com.hypertube.auth.exception.AuthException;
-import com.hypertube.auth.schema.AuthResponse;
 import com.hypertube.auth.schema.OAuthIdentity;
 import com.hypertube.auth.schema.UserProfile;
 import com.hypertube.auth.security.AuthCookies;
@@ -41,8 +40,8 @@ class AuthControllerTest {
     private static final String PROOF = "a".repeat(64);
     private static final UserProfile USER = new UserProfile(17L, "google", "user-123", "Test User", "test@example.com");
     private static final SessionPrincipal PRINCIPAL = new SessionPrincipal(17L, CODE);
-    private static final AuthTokens TOKENS = new AuthTokens(new AuthResponse(600,
-            Instant.parse("2026-11-18T12:10:00Z"), USER), "signed.jwt.value", "b".repeat(43), Duration.ofDays(30));
+    private static final AuthTokens TOKENS = new AuthTokens("signed.jwt.value", "b".repeat(43), Duration.ofMinutes(10),
+            Duration.ofDays(30), Instant.parse("2026-11-18T12:10:00Z"), USER);
 
     @Autowired private MockMvc mvc;
     @MockitoBean private AuthService auth;
@@ -72,6 +71,7 @@ class AuthControllerTest {
                         .cookie(new Cookie("hypertube_login_proof", PROOF)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").doesNotExist())
                 .andExpect(jsonPath("$.tokenType").doesNotExist()).andExpect(jsonPath("$.expiresIn").value(600))
+                .andExpect(jsonPath("$.expiresAt").value("2026-11-18T12:10:00Z"))
                 .andExpect(jsonPath("$.user.id").value(17)).andExpect(jsonPath("$.refreshToken").doesNotExist())
                 .andExpect(cookie().value(AuthCookies.REFRESH, TOKENS.refreshToken()))
                 .andExpect(cookie().httpOnly(AuthCookies.REFRESH, true)).andExpect(cookie().secure(AuthCookies.REFRESH, true))

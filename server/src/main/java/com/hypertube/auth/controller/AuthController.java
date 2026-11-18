@@ -50,13 +50,14 @@ class AuthController {
     ResponseEntity<AuthResponse> completeHandoff(@RequestParam UUID code,
             @CookieValue(value = "hypertube_login_proof", defaultValue = "") String proof) {
         AuthTokens result = tokens.completeLogin(code, proof);
-        return signedIn(result).header(HttpHeaders.SET_COOKIE, cookies.clearLoginProof()).body(result.response());
+        return signedIn(result).header(HttpHeaders.SET_COOKIE, cookies.clearLoginProof())
+                .body(new AuthResponse(result.accessMaxAge().toSeconds(), result.accessExpiresAt(), result.user()));
     }
 
     @PostMapping("/api/auth/refresh")
     ResponseEntity<AuthResponse> refresh(@CookieValue(value = AuthCookies.REFRESH, defaultValue = "") String refreshToken) {
         AuthTokens result = tokens.refresh(refreshToken);
-        return signedIn(result).body(result.response());
+        return signedIn(result).body(new AuthResponse(result.accessMaxAge().toSeconds(), result.accessExpiresAt(), result.user()));
     }
 
     @PostMapping("/api/auth/logout")

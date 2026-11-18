@@ -65,7 +65,7 @@ public class TokenService {
 
     @Transactional(noRollbackFor = AuthException.class)
     public AuthTokens refresh(String refreshToken) {
-        if (!TokenValues.isValid(refreshToken)) {
+        if (refreshToken == null || refreshToken.isEmpty()) {
             throw invalidRefresh();
         }
         String hash = TokenValues.hash(refreshToken);
@@ -90,7 +90,7 @@ public class TokenService {
     @Transactional
     public void logout(SessionPrincipal principal, String refreshToken) {
         Optional<UUID> id = principal != null ? Optional.of(principal.sessionId())
-                : TokenValues.isValid(refreshToken) ? findSessionId(TokenValues.hash(refreshToken)) : Optional.empty();
+                : refreshToken != null && !refreshToken.isEmpty() ? findSessionId(TokenValues.hash(refreshToken)) : Optional.empty();
         id.flatMap(sessions::findLockedById).ifPresent(this::revoke);
     }
 

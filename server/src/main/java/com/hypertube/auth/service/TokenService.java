@@ -4,19 +4,24 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
-import java.util.TreeSet;
 import java.util.UUID;
 
-import com.hypertube.auth.model.RefreshGrant;
-import com.hypertube.auth.model.RefreshToken;
-import com.hypertube.auth.repository.RefreshGrantRepository;
-import com.hypertube.auth.repository.RefreshTokenRepository;
-import com.hypertube.auth.repository.RevokedAccessTokenRepository;
+import com.hypertube.auth.exception.AuthException;
+import com.hypertube.auth.model.RefreshTokenHistory;
+import com.hypertube.auth.model.UserSession;
+import com.hypertube.auth.repository.RefreshTokenHistoryRepository;
+import com.hypertube.auth.repository.RevokedSessionRepository;
 import com.hypertube.auth.repository.UserRepository;
+import com.hypertube.auth.repository.UserSessionRepository;
+import com.hypertube.auth.schema.AuthResponse;
+import com.hypertube.auth.schema.SessionResponse;
 import com.hypertube.auth.schema.UserProfile;
 import com.hypertube.auth.security.AuthTokens;
+import com.hypertube.auth.security.DeviceMetadata;
 import com.hypertube.auth.security.JwtService;
+import com.hypertube.auth.security.SessionPrincipal;
 import com.hypertube.auth.security.TokenProperties;
 import com.hypertube.auth.security.TokenValues;
 import org.springframework.stereotype.Service;
@@ -24,22 +29,23 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TokenService {
+    private static final List<String> USER_AUTHORITIES = List.of("ROLE_USER");
     private final AuthService auth;
-    private final RefreshGrantRepository grants;
-    private final RefreshTokenRepository refreshTokens;
-    private final RevokedAccessTokenRepository revokedTokens;
+    private final UserSessionRepository sessions;
+    private final RefreshTokenHistoryRepository history;
+    private final RevokedSessionRepository revocations;
     private final UserRepository users;
     private final TokenProperties properties;
     private final JwtService jwt;
     private final Clock clock;
 
-    public TokenService(AuthService auth, RefreshGrantRepository grants, RefreshTokenRepository refreshTokens,
-                        RevokedAccessTokenRepository revokedTokens, UserRepository users,
+    public TokenService(AuthService auth, UserSessionRepository sessions, RefreshTokenHistoryRepository history,
+                        RevokedSessionRepository revocations, UserRepository users,
                         TokenProperties properties, JwtService jwt, Clock clock) {
         this.auth = auth;
-        this.grants = grants;
-        this.refreshTokens = refreshTokens;
-        this.revokedTokens = revokedTokens;
+        this.sessions = sessions;
+        this.history = history;
+        this.revocations = revocations;
         this.users = users;
         this.properties = properties;
         this.jwt = jwt;
@@ -47,85 +53,110 @@ public class TokenService {
     }
 
     @Transactional
-    public Optional<AuthTokens> completeLogin(UUID code, String proof) {
-        return auth.finishLogin(code, proof).map(user -> {
-            Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
-            grants.deleteExpired(now);
-            revokedTokens.deleteExpired(now);
-            UUID tokenId = UUID.randomUUID();
-            Instant accessExpiry = now.plus(properties.accessTtl()).truncatedTo(ChronoUnit.SECONDS);
-            Instant refreshExpiry = now.plus(properties.refreshTtl()).truncatedTo(ChronoUnit.SECONDS);
-            RefreshGrant grant = grants.save(new RefreshGrant(user.id(), tokenId, accessExpiry, refreshExpiry));
-            String refreshToken = TokenValues.generate();
-            refreshTokens.save(new RefreshToken(TokenValues.hash(refreshToken), grant.getId()));
-            return new AuthTokens(user, jwt.issue(user.id(), grant.getId(), tokenId, now, accessExpiry), refreshToken,
-                    Duration.between(now, accessExpiry), Duration.between(now, refreshExpiry));
-        });
+    public AuthTokens completeLogin(UUID code, String proof, DeviceMetadata device) {
+        UserProfile user = auth.finishLogin(code, proof)
+                .orElseThrow(() -> new AuthException("invalid_handoff", "The login handoff is invalid or expired", false));
+        // Serialize new logins with logout-all for the same user.
+        users.findLockedById(user.id()).orElseThrow();
+        Instant now = clock.instant();
+        Instant absolute = now.plus(properties.absoluteTtl());
+        Instant sliding = earlier(now.plus(properties.slidingTtl()), absolute);
+        String refreshToken = TokenValues.generate();
+        UserSession session = sessions.save(new UserSession(user.id(), TokenValues.hash(refreshToken), device, now, sliding, absolute));
+        return issue(session, user, refreshToken, now);
     }
 
     @Transactional(readOnly = true)
-    public Optional<UserProfile> authenticate(String accessToken) {
-        return jwt.verify(accessToken).filter(claims -> !revokedTokens.existsById(claims.tokenId()))
-                .flatMap(claims -> users.findProfileById(claims.userId()));
+    public Optional<SessionPrincipal> authenticate(String accessToken) {
+        return jwt.verify(accessToken).filter(claims -> !revocations.existsById(claims.sessionId()))
+                .map(claims -> new SessionPrincipal(claims.userId(), claims.sessionId(), claims.authorities()));
     }
 
-    @Transactional
-    public Optional<AuthTokens> refresh(String refreshToken) {
+    @Transactional(noRollbackFor = AuthException.class)
+    public AuthTokens refresh(String refreshToken, DeviceMetadata device) {
         if (!TokenValues.isValid(refreshToken)) {
-            return Optional.empty();
+            throw invalidRefresh();
         }
         String hash = TokenValues.hash(refreshToken);
-        // Lock the refresh grant before reading token state so concurrent refreshes cannot both succeed.
-        var candidate = refreshTokens.findGrantId(hash).flatMap(grants::findLockedById);
-        Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
-        if (candidate.isEmpty() || !candidate.get().isActive(now)
-                || !candidate.get().getExpiresAt().truncatedTo(ChronoUnit.SECONDS).isAfter(now)) {
-            return Optional.empty();
+        // Resolve only an ID before taking the lock; reading token state earlier would cache stale data.
+        UserSession session = findSessionId(hash).flatMap(sessions::findLockedById).orElseThrow(this::invalidRefresh);
+        Instant now = clock.instant();
+        if (!session.isActive(now)) {
+            revoke(session);
+            throw new AuthException("session_expired", "The device session is expired or revoked", true);
         }
-        RefreshGrant grant = candidate.get();
-        RefreshToken token = refreshTokens.findById(hash).orElseThrow();
-        if (token.isUsed()) {
-            revokeGrant(grant, now);
-            return Optional.empty();
+        boolean current = hash.equals(session.getRefreshTokenHash());
+        boolean grace = session.isPreviousWithinGrace(hash, now)
+                || (!current && history.findGraceDeadline(hash).filter(deadline -> deadline.isAfter(now)).isPresent());
+        if (!current && !grace) {
+            revoke(session);
+            throw new AuthException("refresh_reuse", "Refresh token reuse detected; sign in again", true);
         }
-        return users.findProfileById(grant.getUserId()).map(user -> {
-            token.use(now);
-            revokeAccessToken(grant.getAccessTokenId(), grant.getAccessExpiresAt(), now);
-            UUID tokenId = UUID.randomUUID();
-            Instant accessExpiry = now.plus(properties.accessTtl());
-            if (accessExpiry.isAfter(grant.getExpiresAt())) {
-                accessExpiry = grant.getExpiresAt();
-            }
-            accessExpiry = accessExpiry.truncatedTo(ChronoUnit.SECONDS);
-            grant.rotateAccessToken(tokenId, accessExpiry);
-            String newRefreshToken = TokenValues.generate();
-            refreshTokens.save(new RefreshToken(TokenValues.hash(newRefreshToken), grant.getId()));
-            return new AuthTokens(user, jwt.issue(user.id(), grant.getId(), tokenId, now, accessExpiry),
-                    newRefreshToken, Duration.between(now, accessExpiry), Duration.between(now, grant.getExpiresAt()));
-        });
+        UserProfile user = users.findProfileById(session.getUserId()).orElseThrow(this::invalidRefresh);
+        if (grace) {
+            // Do not issue a refresh cookie: an out-of-order duplicate must not overwrite the winner's token.
+            return issue(session, user, null, now);
+        }
+        String next = TokenValues.generate();
+        history.save(new RefreshTokenHistory(hash, session.getId(), now.plus(properties.refreshGrace())));
+        session.rotate(TokenValues.hash(next), device, now,
+                earlier(now.plus(properties.slidingTtl()), session.getAbsoluteExpiresAt()), now.plus(properties.refreshGrace()));
+        return issue(session, user, next, now);
     }
 
     @Transactional
-    public void logout(String accessToken, String refreshToken) {
-        var ids = new TreeSet<UUID>();
-        var claims = jwt.verify(accessToken);
-        claims.map(JwtService.AccessClaims::grantId).ifPresent(ids::add);
-        if (TokenValues.isValid(refreshToken)) {
-            refreshTokens.findGrantId(TokenValues.hash(refreshToken)).ifPresent(ids::add);
-        }
-        Instant now = clock.instant();
-        ids.forEach(id -> grants.findLockedById(id).ifPresent(grant -> revokeGrant(grant, now)));
-        claims.ifPresent(token -> revokeAccessToken(token.tokenId(), token.expiresAt(), now));
+    public void logout(SessionPrincipal principal, String refreshToken) {
+        Optional<UUID> id = principal != null ? Optional.of(principal.sessionId())
+                : TokenValues.isValid(refreshToken) ? findSessionId(TokenValues.hash(refreshToken)) : Optional.empty();
+        id.flatMap(sessions::findLockedById).ifPresent(this::revoke);
     }
 
-    private void revokeGrant(RefreshGrant grant, Instant now) {
-        grant.revoke(now);
-        revokeAccessToken(grant.getAccessTokenId(), grant.getAccessExpiresAt(), now);
+    @Transactional
+    public void logoutAll(SessionPrincipal principal) {
+        users.findLockedById(principal.userId()).orElseThrow();
+        sessions.findAllLockedByUserId(principal.userId()).forEach(this::revoke);
     }
 
-    private void revokeAccessToken(UUID id, Instant expiresAt, Instant now) {
-        if (expiresAt.isAfter(now)) {
-            revokedTokens.revoke(id, expiresAt);
-        }
+    @Transactional(readOnly = true)
+    public List<SessionResponse> activeSessions(SessionPrincipal principal) {
+        return sessions.findActiveByUserId(principal.userId(), clock.instant()).stream()
+                .map(session -> new SessionResponse(session.getId(), session.getDeviceInfo(), session.getIpAddress(),
+                        session.getLastUsedAt(), session.getId().equals(principal.sessionId())))
+                .toList();
     }
+
+    @Transactional(readOnly = true)
+    public UserProfile currentUser(SessionPrincipal principal) {
+        return users.findProfileById(principal.userId())
+                .orElseThrow(() -> new AuthException("user_not_found", "The authenticated user no longer exists", false));
+    }
+
+    private Optional<UUID> findSessionId(String hash) {
+        return sessions.findIdByTokenHash(hash).or(() -> history.findSessionId(hash));
+    }
+
+    private AuthTokens issue(UserSession session, UserProfile user, String refreshToken, Instant now) {
+        Instant issuedAt = now.truncatedTo(ChronoUnit.SECONDS);
+        Instant expiry = earlier(issuedAt.plus(properties.accessTtl()),
+                earlier(session.getSlidingExpiresAt(), session.getAbsoluteExpiresAt())).truncatedTo(ChronoUnit.SECONDS);
+        if (!expiry.isAfter(now)) {
+            revoke(session);
+            throw new AuthException("session_expired", "The device session is expired", true);
+        }
+        String accessToken = jwt.issue(user.id(), session.getId(), UUID.randomUUID(), USER_AUTHORITIES, issuedAt, expiry);
+        return new AuthTokens(new AuthResponse(accessToken, "Bearer", Duration.between(issuedAt, expiry).toSeconds(), expiry, user),
+                refreshToken, Duration.between(now, session.getSlidingExpiresAt()));
+    }
+
+    private void revoke(UserSession session) {
+        session.revoke();
+        // Keep the tombstone after session cleanup until no JWT from this device can remain valid.
+        revocations.revoke(session.getId(), session.getAbsoluteExpiresAt());
+    }
+
+    private AuthException invalidRefresh() {
+        return new AuthException("invalid_refresh", "The refresh token is missing or invalid", true);
+    }
+
+    private static Instant earlier(Instant first, Instant second) { return first.isBefore(second) ? first : second; }
 }

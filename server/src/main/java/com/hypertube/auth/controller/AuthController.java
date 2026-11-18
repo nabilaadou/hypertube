@@ -1,13 +1,18 @@
 package com.hypertube.auth.controller;
 
+import java.util.List;
 import java.util.UUID;
-
+import com.hypertube.auth.schema.AuthResponse;
 import com.hypertube.auth.schema.OAuthIdentity;
+import com.hypertube.auth.schema.SessionResponse;
 import com.hypertube.auth.schema.UserProfile;
 import com.hypertube.auth.security.AuthCookies;
 import com.hypertube.auth.security.AuthTokens;
+import com.hypertube.auth.security.DeviceMetadata;
+import com.hypertube.auth.security.SessionPrincipal;
 import com.hypertube.auth.service.AuthService;
 import com.hypertube.auth.service.TokenService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
@@ -36,47 +41,47 @@ class AuthController {
     }
 
     @PostMapping("/internal/auth/login-handoffs")
-    ResponseEntity<String> createHandoff(
-            @RequestHeader(value = "Authorization", defaultValue = "") String authorization,
-            @Valid @RequestBody OAuthIdentity identity)
-    {
+    ResponseEntity<String> createHandoff(@RequestHeader(value = "Authorization", defaultValue = "") String authorization,
+                                         @Valid @RequestBody OAuthIdentity identity) {
         if (!auth.isHandoffAuthorized(authorization)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
-
-        UUID code = auth.startLogin(identity);
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(code.toString());
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(auth.startLogin(identity).toString());
     }
 
     @PostMapping("/api/auth/login-handoffs/complete")
-    ResponseEntity<UserProfile> completeHandoff(
-            @RequestParam UUID code,
-            @CookieValue(value = "hypertube_login_proof", defaultValue = "") String proof)
-    {
-        return tokens.completeLogin(code, proof).map(this::signedIn)
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).cacheControl(CacheControl.noStore())
-                        .header("Referrer-Policy", "no-referrer").build());
+    ResponseEntity<AuthResponse> completeHandoff(@RequestParam UUID code,
+            @CookieValue(value = "hypertube_login_proof", defaultValue = "") String proof, HttpServletRequest request) {
+        return signedIn(tokens.completeLogin(code, proof, DeviceMetadata.from(request)));
     }
 
     @PostMapping("/api/auth/refresh")
-    ResponseEntity<UserProfile> refresh(
-            @CookieValue(value = AuthCookies.REFRESH, defaultValue = "") String refreshToken) {
-        return tokens.refresh(refreshToken).map(this::signedIn)
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).cacheControl(CacheControl.noStore())
-                        .headers(cookies.clear()).build());
+    ResponseEntity<AuthResponse> refresh(@CookieValue(value = AuthCookies.REFRESH, defaultValue = "") String refreshToken,
+                                         HttpServletRequest request) {
+        return signedIn(tokens.refresh(refreshToken, DeviceMetadata.from(request)));
     }
 
     @PostMapping("/api/auth/logout")
-    ResponseEntity<Void> logout(
-            @CookieValue(value = AuthCookies.ACCESS, defaultValue = "") String accessToken,
+    ResponseEntity<Void> logout(@AuthenticationPrincipal SessionPrincipal principal,
             @CookieValue(value = AuthCookies.REFRESH, defaultValue = "") String refreshToken) {
-        tokens.logout(accessToken, refreshToken);
-        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).headers(cookies.clear()).build();
+        tokens.logout(principal, refreshToken);
+        return signedOut();
+    }
+
+    @PostMapping("/api/auth/logout-all")
+    ResponseEntity<Void> logoutAll(@AuthenticationPrincipal SessionPrincipal principal) {
+        tokens.logoutAll(principal);
+        return signedOut();
+    }
+
+    @GetMapping("/api/auth/sessions")
+    ResponseEntity<List<SessionResponse>> sessions(@AuthenticationPrincipal SessionPrincipal principal) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(tokens.activeSessions(principal));
     }
 
     @GetMapping("/api/auth/me")
-    ResponseEntity<UserProfile> currentUser(@AuthenticationPrincipal UserProfile user) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(user);
+    ResponseEntity<UserProfile> currentUser(@AuthenticationPrincipal SessionPrincipal principal) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(tokens.currentUser(principal));
     }
 
     @GetMapping("/api/auth/csrf")
@@ -84,8 +89,12 @@ class AuthController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(token);
     }
 
-    private ResponseEntity<UserProfile> signedIn(AuthTokens tokens) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).headers(cookies.issue(tokens))
-                .header("Referrer-Policy", "no-referrer").body(tokens.user());
+    private ResponseEntity<AuthResponse> signedIn(AuthTokens result) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).headers(cookies.issue(result))
+                .header("Referrer-Policy", "no-referrer").body(result.response());
+    }
+
+    private ResponseEntity<Void> signedOut() {
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).headers(cookies.clear()).build();
     }
 }

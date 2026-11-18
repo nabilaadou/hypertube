@@ -1,6 +1,7 @@
 package com.hypertube.health.controller;
 
 import com.hypertube.auth.security.SecurityConfiguration;
+import com.hypertube.auth.security.AuthCookies;
 import com.hypertube.auth.service.TokenService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(HealthController.class)
-@Import(SecurityConfiguration.class)
+@Import({SecurityConfiguration.class, AuthCookies.class})
 class HealthControllerTest {
 
     @MockitoBean

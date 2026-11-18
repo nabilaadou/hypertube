@@ -43,10 +43,10 @@ public class JwtService {
                 new JwtIssuerValidator(properties.issuer()), new JwtTypeValidator("at+jwt"), this::validateClaims));
     }
 
-    public String issue(long userId, UUID grantId, UUID tokenId, Instant issuedAt, Instant expiresAt) {
+    public String issue(long userId, UUID sessionId, UUID tokenId, List<String> authorities, Instant issuedAt, Instant expiresAt) {
         var claims = JwtClaimsSet.builder().issuer(properties.issuer()).audience(List.of(properties.audience()))
                 .subject(Long.toString(userId)).id(tokenId.toString()).issuedAt(issuedAt).expiresAt(expiresAt)
-                .claim("grant_id", grantId.toString()).claim("token_use", "access").build();
+                .claim("sid", sessionId.toString()).claim("authorities", authorities).claim("token_use", "access").build();
         return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).type("at+jwt").build(), claims))
                 .getTokenValue();
     }
@@ -65,7 +65,8 @@ public class JwtService {
     private OAuth2TokenValidatorResult validateClaims(Jwt jwt) {
         try {
             AccessClaims claims = claims(jwt);
-            if (claims.userId() > 0 && jwt.getAudience().contains(properties.audience())
+            if (claims.userId() > 0 && !claims.authorities().isEmpty() && claims.authorities().size() <= 16
+                    && claims.authorities().stream().allMatch(role -> role.matches("ROLE_[A-Z0-9_]{1,64}")) && jwt.getAudience().contains(properties.audience())
                     && "access".equals(jwt.getClaimAsString("token_use"))
                     && jwt.getIssuedAt() != null && !jwt.getIssuedAt().isAfter(clock.instant())
                     && claims.expiresAt() != null && claims.expiresAt().isAfter(jwt.getIssuedAt())
@@ -79,9 +80,9 @@ public class JwtService {
     }
 
     private AccessClaims claims(Jwt jwt) {
-        return new AccessClaims(Long.parseLong(jwt.getSubject()), UUID.fromString(jwt.getClaimAsString("grant_id")),
-                UUID.fromString(jwt.getId()), jwt.getExpiresAt());
+        return new AccessClaims(Long.parseLong(jwt.getSubject()), UUID.fromString(jwt.getClaimAsString("sid")),
+                UUID.fromString(jwt.getId()), List.copyOf(jwt.getClaimAsStringList("authorities")), jwt.getExpiresAt());
     }
 
-    public record AccessClaims(long userId, UUID grantId, UUID tokenId, Instant expiresAt) {}
+    public record AccessClaims(long userId, UUID sessionId, UUID tokenId, List<String> authorities, Instant expiresAt) {}
 }

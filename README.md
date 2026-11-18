@@ -48,6 +48,19 @@ npm run dev
 
 Open `http://localhost:3000` to view the landing page.
 
+## Search the movie catalog
+
+Get your API Read Access Token from your TMDB account. With Docker, set `TMDB_READ_ACCESS_TOKEN` in the root `.env`, then run `make up` to apply the change. When you run Maven directly, set `TMDB_READ_ACCESS_TOKEN` in the server process environment before starting the API. [TMDB authentication guide](https://developer.themoviedb.org/docs/authentication-application)
+
+Both endpoints are public. Search by title, then pass a result's `tmdbId` to the details endpoint.
+
+```sh
+curl -fsS 'http://localhost:8080/api/movies/search?q=alien&page=1'
+curl -fsS 'http://localhost:8080/api/movies/348'
+```
+
+Search supports pages 1 through 500 and starts on page 1 when you omit `page`. An empty search result returns a page with an empty `results` list. An unknown movie returns HTTP 404. Without a TMDB token, the catalog returns HTTP 503 and `/api/health` remains available.
+
 ## Prepare the landing page media
 
 Docker downloads the files from R2 into persistent volumes. To run without Docker, run `npm run prepare:media` from `client/`. It copies the tracked theater GLB from `models/` to `client/public/models/`. It also copies `reel.mp4`, `reel-poster.jpg`, and `theater.png` from the local `design-assets/` folder to `client/public/media/` when available.

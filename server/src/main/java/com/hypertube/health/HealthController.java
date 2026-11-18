@@ -1,4 +1,4 @@
-package com.hypertube;
+package com.hypertube.health;
 
 import java.util.Map;
 

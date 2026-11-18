@@ -1,4 +1,4 @@
-package com.hypertube;
+package com.hypertube.health;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = "hypertube.tmdb.read-access-token=")
 @AutoConfigureMockMvc
 class HealthControllerTest {
 
@@ -22,5 +22,11 @@ class HealthControllerTest {
         mockMvc.perform(get("/api/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    void startsWithoutMovieProviderCredentials() throws Exception {
+        mockMvc.perform(get("/api/movies/search").param("q", "Alien"))
+                .andExpect(status().isServiceUnavailable());
     }
 }

@@ -103,6 +103,16 @@ class TokenIntegrationTest {
     }
 
     @Test
+    void signsInWithGithubAndReusesTheSameProviderAccount() throws Exception {
+        var first = mvc.perform(complete(createHandoff("github", "12345")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.user.provider").value("github"));
+        var returning = mvc.perform(complete(createHandoff("github", "12345")))
+                .andExpect(status().isOk());
+
+        assertThat(from(returning.andReturn()).userId()).isEqualTo(from(first.andReturn()).userId());
+    }
+
+    @Test
     void handoffRequiresTheBrowserProofAndRemainsUsableAfterWrongProof() throws Exception {
         String code = createHandoff("session-test");
         mvc.perform(post("/api/auth/login-handoffs/complete").param("code", code))
@@ -300,10 +310,13 @@ class TokenIntegrationTest {
         return from(mvc.perform(complete(createHandoff("session-test"))).andExpect(status().isOk()).andReturn());
     }
     private String createHandoff(String account) throws Exception {
+        return createHandoff("google", account);
+    }
+    private String createHandoff(String provider, String account) throws Exception {
         return mvc.perform(post("/internal/auth/login-handoffs").header("Authorization", "Bearer " + SECRET)
                 .contentType(MediaType.APPLICATION_JSON).content("""
-                        {"provider":"google","providerUserId":"%s","displayName":"Test User","proofHash":"%s"}
-                        """.formatted(account, jwt.hash(PROOF))))
+                        {"provider":"%s","providerUserId":"%s","displayName":"Test User","proofHash":"%s"}
+                        """.formatted(provider, account, jwt.hash(PROOF))))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
     }
     private MockHttpServletRequestBuilder complete(String code) {

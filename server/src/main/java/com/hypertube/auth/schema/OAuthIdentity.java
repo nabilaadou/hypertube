@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import org.hibernate.validator.constraints.CodePointLength;
 
 public record OAuthIdentity(
-        @NotNull @Pattern(regexp = "42|google") String provider,
+        @NotNull @Pattern(regexp = "42|google|github") String provider,
         @NotBlank @CodePointLength(max = 128) @Pattern(regexp = NO_NUL) String providerUserId,
         @CodePointLength(max = 128) @Pattern(regexp = NO_NUL) String displayName,
         @CodePointLength(max = 254) @Pattern(regexp = NO_NUL) String email,

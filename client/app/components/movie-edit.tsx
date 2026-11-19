@@ -8,6 +8,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { type CSSProperties, type PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { movies, cinemaMedia, type Movie } from "../data/movies";
+import { AccountNav } from "./account-nav";
 import type { createCinemaPaperSurface, PaperPose } from "./cinema-paper-surface";
 import { projectVideo, type ScreenCorners } from "./cinema-projection";
 import { HypertubeStatement } from "./hypertube-statement";
@@ -432,27 +433,32 @@ export function MovieEdit() {
           )}
         </div>
 
-        <header className={`absolute inset-x-0 top-0 z-10 ${phase === "cinema" ? "grid" : "sr-only"} grid-cols-[1fr_auto_1fr] items-center px-page py-6 md:py-8`} inert={phase !== "cinema"}>
-          <svg aria-hidden="true" viewBox="0 0 40 40" fill="none" className="size-8">
+        <header className="absolute inset-x-0 top-0 z-10 grid grid-cols-[auto_1fr_auto] items-center gap-2 px-page py-4 sm:grid-cols-[1fr_auto_1fr] md:py-8">
+          <svg aria-hidden="true" viewBox="0 0 40 40" fill="none" className={`size-6 sm:size-8 ${phase === "cinema" ? "" : "invisible"}`}>
             <path d="M6 6v28m28-28v28M6 12l14 9 14-9M6 22l14 9 14-9" stroke="currentColor" strokeWidth="3.5" strokeLinecap="square" />
           </svg>
-          <h1 id="opening-title" className="cinema-stage-brand font-display text-3xl leading-none font-black tracking-wide uppercase md:text-4xl">Hypertube</h1>
-          <details className="relative justify-self-end" onKeyDown={(event) => {
-            if (event.key === "Escape" && event.currentTarget.open) {
-              event.currentTarget.open = false;
-              event.currentTarget.querySelector("summary")?.focus();
-            }
-          }}>
-            <summary aria-label="Navigation" className={`${control} list-none [&::-webkit-details-marker]:hidden`}>
-              <span aria-hidden="true" className="grid gap-[3px]">
-                <span className="h-px w-3.5 -skew-x-30 bg-current" />
-                <span className="ml-[3px] h-px w-3.5 -skew-x-30 bg-current" />
-              </span>
-            </summary>
-            <nav aria-label="Landing page" className="absolute top-full right-0 mt-3 min-w-44 rounded-card bg-ink p-2 shadow-lg">
-              <a className="block rounded px-4 py-3 hover:bg-quote" href="#opening">Opening edit</a>
-            </nav>
-          </details>
+          <h1 id="opening-title" className={phase === "cinema" ? "cinema-stage-brand font-display text-xl leading-none font-black tracking-wide uppercase sm:text-3xl md:text-4xl" : "sr-only"}>Hypertube</h1>
+          <div className="col-start-3 flex min-w-0 items-center gap-0.5 justify-self-end sm:gap-2">
+            <AccountNav />
+            {phase === "cinema" && (
+              <details className="relative" onKeyDown={(event) => {
+                if (event.key === "Escape" && event.currentTarget.open) {
+                  event.currentTarget.open = false;
+                  event.currentTarget.querySelector("summary")?.focus();
+                }
+              }}>
+                <summary aria-label="Navigation" className={`${control} list-none [&::-webkit-details-marker]:hidden`}>
+                  <span aria-hidden="true" className="grid gap-[3px]">
+                    <span className="h-px w-3.5 -skew-x-30 bg-current" />
+                    <span className="ml-[3px] h-px w-3.5 -skew-x-30 bg-current" />
+                  </span>
+                </summary>
+                <nav aria-label="Landing page" className="absolute top-full right-0 mt-3 min-w-44 rounded-card bg-ink p-2 shadow-lg">
+                  <a className="block rounded px-4 py-3 hover:bg-quote" href="#opening">Opening edit</a>
+                </nav>
+              </details>
+            )}
+          </div>
         </header>
 
         <section aria-labelledby="timeline-title" className="cinema-timeline absolute inset-0">

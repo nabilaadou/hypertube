@@ -69,7 +69,6 @@ services:
       - "127.0.0.1:${HYPERTUBE_CLIENT_PORT}:3000"
     environment:
       BACKEND_URL: ${BACKEND_URL}
-      AUTH_SERVER_URL: http://auth-server:4567
     depends_on:
       server:
         condition: service_healthy
@@ -100,17 +99,15 @@ services:
     ports:
       - "127.0.0.1:${HYPERTUBE_AUTH_PORT}:4567"
     environment:
-      AUTH_BASE_URL: ${AUTH_BASE_URL:-http://localhost:3000}
-      AUTH_SERVER_URL: http://auth-server:4567
+      AUTH_BASE_URL: ${AUTH_BASE_URL}
       AUTH_HANDOFF_SECRET: ${AUTH_HANDOFF_SECRET}
       AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET}
       SPRING_INTERNAL_URL: ${SPRING_INTERNAL_URL}
+      SPRING_PUBLIC_URL: ${SPRING_PUBLIC_URL}
       FORTY_TWO_CLIENT_ID: ${FORTY_TWO_CLIENT_ID}
       FORTY_TWO_CLIENT_SECRET: ${FORTY_TWO_CLIENT_SECRET}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
     depends_on:
       server:
         condition: service_healthy

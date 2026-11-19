@@ -9,6 +9,8 @@ COPY Gemfile Gemfile.lock ./
 RUN bundle config set deployment true && bundle install
 COPY app.rb config.ru ./
 COPY strategies ./strategies
+COPY views ./views
+COPY public ./public
 
 EXPOSE 4567
 USER 10001:10001

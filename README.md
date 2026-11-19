@@ -24,7 +24,7 @@ Start the development stack.
 make up
 ```
 
-Open `http://localhost:3000` and use **Log in** or **Sign up**. The API is available at `http://localhost:8080/api/health`. `make up` starts PostgreSQL, Spring Boot, Next.js, the OAuth service, and the media downloader. Compose reloads Next.js when you edit the frontend and restarts Spring Boot when you edit backend source files. Changes to dependency manifests rebuild the corresponding image.
+Open `http://localhost:3000`. The API is available at `http://localhost:8080/api/health`, and the auth provider page is at `http://localhost:4567`. `make up` starts PostgreSQL, Spring Boot, Next.js, and the auth service together. Compose reloads Next.js when you edit the frontend and restarts Spring Boot when you edit backend source files. Changes to dependency manifests rebuild the corresponding image.
 
 The `assets` service downloads the landing page media from the public R2 bucket before the client starts. The service verifies each file against its SHA-256 hash and stores it in Docker volumes. Later starts reuse verified files. If a download fails or a checksum differs, the client waits until the asset is available and a subsequent start succeeds.
 
@@ -90,25 +90,26 @@ The public R2 bucket must contain these objects. The setup checks their hashes a
 
 To change the bucket, set `ASSET_BASE_URL` in the root `.env`. To update an asset, upload the replacement and update its SHA-256 hash in the manifest in the same change.
 
-## Set up provider sign-in
+## Test 42 and Google sign-in
 
-In the root `.env`, set `AUTH_BASE_URL` to the browser-facing Next.js origin (`http://localhost:3000` by default). If you used the Ruby preview, change its old port `4567` to the frontend port and update the registered callback URLs. Remove the obsolete `SPRING_PUBLIC_URL` setting.
+Use the root `.env` from the Docker setup above. If you have an existing `auth-server/.env`, move its values for `AUTH_BASE_URL`, `AUTH_SESSION_SECRET`, and the provider credentials into the root `.env`.
 
-Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` for a GitHub OAuth App and `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` for a Google **Web application** OAuth client. Set `FORTY_TWO_CLIENT_ID` and `FORTY_TWO_CLIENT_SECRET` to also offer 42. Each provider can be configured independently. If Google OAuth is in testing mode, add the Google account you plan to use as a test user.
+Add the client ID and secret for each provider you want to test to `.env`. You can configure either provider on its own. The auth service starts with `make up`; providers without credentials are shown as unconfigured on the sign-in page.
 
-Register the callback URLs for the providers you enable.
+Register the redirect URIs with your 42 application and Google **Web application** OAuth client. These are the URIs for the ports in `.env.example`. If Google OAuth is in testing mode, add the Google account you plan to use as a test user.
 
 | Provider | Redirect URI |
 | --- | --- |
-| GitHub | `http://localhost:3000/auth/github/callback` |
-| Google | `http://localhost:3000/auth/google_oauth2/callback` |
-| 42 | `http://localhost:3000/auth/marvin/callback` |
+| 42 | `http://localhost:4567/auth/marvin/callback` |
+| Google | `http://localhost:4567/auth/google_oauth2/callback` |
 
 ```sh
 make up
 ```
 
-Select a provider from **Log in** or **Sign up**. Both use the same OAuth flow. A first sign-in creates the user, and future sign-ins with the same provider account reuse it. Next.js routes OAuth requests to Ruby, then redeems the two-minute handoff with Spring and returns the browser to the landing page with the session cookies. Email and password are UI previews. Restart `make up` after changing `.env`.
+Open `http://localhost:4567` and select a provider. After a successful callback, the auth service creates a handoff through `POST /internal/auth/login-handoffs`. Handoffs expire after two minutes. The browser submits the handoff to `POST /api/auth/login-handoffs/complete`, which saves or updates the user in PostgreSQL and sets JWT access and opaque refresh tokens as HttpOnly cookies. Its JSON response contains token lifetime and user profile metadata. The profile contains the database ID, provider, provider user ID, and available name and email. Repeat sign-ins with the same provider account reuse the database ID.
+
+Run `make up` again after changing `.env`. Use the same browser-facing hostname and scheme in `AUTH_BASE_URL` and `SPRING_PUBLIC_URL` so the browser can carry the login cookie to Spring Boot.
 
 ## Backend JWT authentication
 

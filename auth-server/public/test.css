@@ -1,0 +1,67 @@
+:root {
+  color-scheme: light;
+  background: #f6f4ed;
+  color: #242820;
+  font: 100%/1.5 "Inter", system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 34rem;
+  margin: clamp(2rem, 12vh, 7rem) auto;
+  padding: 0 1.25rem;
+}
+
+h1 {
+  font-size: clamp(1.8rem, 5vw, 2.5rem);
+  line-height: 1.15;
+  margin: 0;
+}
+
+.provider {
+  border-top: 1px solid #c9c9bd;
+  padding: 1rem 0;
+}
+
+button {
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: #214635;
+  color: white;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #315e49;
+}
+
+button:focus-visible {
+  outline: 2px solid #214635;
+  outline-offset: 3px;
+}
+
+.callback,
+.unconfigured {
+  color: #55584e;
+  margin: 0.5rem 0 0;
+}
+
+.callback code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  padding: 0.85rem 1rem;
+  margin: 1rem 0;
+  border-left: 3px solid;
+  color: #683b23;
+  background: #f8e8dc;
+}

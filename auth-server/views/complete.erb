@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Complete Hypertube sign-in</title>
+    <link rel="stylesheet" href="/test.css">
+  </head>
+  <body>
+    <main>
+      <h1>Complete sign-in</h1>
+      <form id="complete-login" action="<%= h(@login_complete_url) %>" method="post">
+        <input type="hidden" name="code" value="<%= h(@login_code) %>">
+        <button type="submit">Continue to Hypertube</button>
+      </form>
+    </main>
+    <script nonce="<%= h(@script_nonce) %>">
+      document.getElementById("complete-login").submit();
+    </script>
+  </body>
+</html>

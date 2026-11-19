@@ -20,10 +20,9 @@ forty_two_credentials = oauth_credentials("FORTY_TWO")
 google_credentials = oauth_credentials("GOOGLE")
 
 AuthServer.set :providers, {
-  "marvin" => { id: "42", label: "42", enabled: !forty_two_credentials.nil? },
-  "google_oauth2" => { id: "google", label: "Google", enabled: !google_credentials.nil? }
+  "marvin" => { id: "42", enabled: !forty_two_credentials.nil? },
+  "google_oauth2" => { id: "google", enabled: !google_credentials.nil? }
 }
-AuthServer.set :base_url, auth_base_url.origin
 AuthServer.set :spring_public_url, spring_public_url
 AuthServer.set :login_handoff_secret, ENV.fetch("AUTH_HANDOFF_SECRET")
 AuthServer.set :login_handoff_url, URI.join(spring_internal_url, "/internal/auth/login-handoffs")
@@ -35,8 +34,9 @@ OmniAuth.configure do |config|
   config.logger = Logger.new(File::NULL)
   config.on_failure do |request_env|
     error_type = request_env["omniauth.error.type"]
-    request_env["rack.session"]["failure"] = error_type == :access_denied ? "cancelled" : "failed"
-    [303, { "location" => "/", "cache-control" => "no-store", "referrer-policy" => "no-referrer" }, []]
+    reason = error_type == :access_denied ? "cancelled" : "sign_in_failed"
+    [400, { "content-type" => "application/json", "cache-control" => "no-store",
+            "referrer-policy" => "no-referrer" }, [JSON.generate(error: reason)]]
   end
 end
 

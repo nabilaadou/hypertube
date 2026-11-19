@@ -24,7 +24,7 @@ Start the development stack.
 make up
 ```
 
-Open `http://localhost:3000`. The API is available at `http://localhost:8080/api/health`, and the auth provider page is at `http://localhost:4567`. `make up` starts PostgreSQL, Spring Boot, Next.js, and the auth service together. Compose reloads Next.js when you edit the frontend and restarts Spring Boot when you edit backend source files. Changes to dependency manifests rebuild the corresponding image.
+Open `http://localhost:3000`. The API health check is at `http://localhost:8080/api/health`, and the OAuth service listens at `http://localhost:4567`. `make up` starts PostgreSQL, Spring Boot, Next.js, and the auth service together. Compose reloads Next.js when you edit the frontend and restarts Spring Boot when you edit backend source files. Changes to dependency manifests rebuild the corresponding image.
 
 The `assets` service downloads the landing page media from the public R2 bucket before the client starts. The service verifies each file against its SHA-256 hash and stores it in Docker volumes. Later starts reuse verified files. If a download fails or a checksum differs, the client waits until the asset is available and a subsequent start succeeds.
 
@@ -94,7 +94,7 @@ To change the bucket, set `ASSET_BASE_URL` in the root `.env`. To update an asse
 
 Use the root `.env` from the Docker setup above. If you have an existing `auth-server/.env`, move its values for `AUTH_BASE_URL`, `AUTH_SESSION_SECRET`, and the provider credentials into the root `.env`.
 
-Add the client ID and secret for each provider you want to test to `.env`. You can configure either provider on its own. The auth service starts with `make up`; providers without credentials are shown as unconfigured on the sign-in page.
+Add the client ID and secret for each provider you want to test to `.env`. You can configure either provider on its own. The auth service starts with `make up` and returns its enabled providers from `GET /auth/providers`.
 
 Register the redirect URIs with your 42 application and Google **Web application** OAuth client. These are the URIs for the ports in `.env.example`. If Google OAuth is in testing mode, add the Google account you plan to use as a test user.
 
@@ -107,7 +107,7 @@ Register the redirect URIs with your 42 application and Google **Web application
 make up
 ```
 
-Open `http://localhost:4567` and select a provider. After a successful callback, the auth service creates a handoff through `POST /internal/auth/login-handoffs`. Handoffs expire after two minutes. The browser submits the handoff to `POST /api/auth/login-handoffs/complete`, which saves or updates the user in PostgreSQL and sets JWT access and opaque refresh tokens as HttpOnly cookies. Its JSON response contains token lifetime and user profile metadata. The profile contains the database ID, provider, provider user ID, and available name and email. Repeat sign-ins with the same provider account reuse the database ID.
+The auth service returns JSON and provider redirects. In the same browser session, request `GET /auth/providers`, then post its `csrfToken` as the form field `authenticity_token` to `/auth/marvin` or `/auth/google_oauth2`. This redirects the browser to the provider. On success the callback sets the HttpOnly browser proof cookie and returns `code` and `completionUrl`. Within two minutes, post the `code` as a form field to that URL with the browser proof cookie. Spring saves or updates the user in PostgreSQL, issues the HttpOnly access and refresh cookies, and returns the user profile and token expiry as JSON. Repeat sign-ins with the same provider account reuse the database ID.
 
 Run `make up` again after changing `.env`. Use the same browser-facing hostname and scheme in `AUTH_BASE_URL` and `SPRING_PUBLIC_URL` so the browser can carry the login cookie to Spring Boot.
 

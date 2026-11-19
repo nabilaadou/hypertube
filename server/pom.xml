@@ -16,6 +16,11 @@
 
     <properties>
         <java.version>21</java.version>
+        <!-- These plugin releases use the patched Plexus Utils 4.x. -->
+        <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
+        <maven-install-plugin.version>3.2.0</maven-install-plugin.version>
+        <maven-deploy-plugin.version>3.2.0</maven-deploy-plugin.version>
+        <plexus-utils-3.version>3.6.1</plexus-utils-3.version>
     </properties>
 
     <dependencies>
@@ -25,16 +30,89 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-security-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
 
     <build>
+        <!-- Clean and resources run by default. Override their Plexus Utils for CVE-2025-67030. -->
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <artifactId>maven-clean-plugin</artifactId>
+                    <dependencies>
+                        <dependency>
+                            <groupId>org.codehaus.plexus</groupId>
+                            <artifactId>plexus-utils</artifactId>
+                            <version>4.0.3</version>
+                        </dependency>
+                    </dependencies>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <dependencies>
+                        <dependency>
+                            <groupId>org.codehaus.plexus</groupId>
+                            <artifactId>plexus-utils</artifactId>
+                            <version>${plexus-utils-3.version}</version>
+                        </dependency>
+                    </dependencies>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <!-- Patch transitive dependencies of the plugin itself. -->
+                <dependencies>
+                    <dependency>
+                        <groupId>org.apache.commons</groupId>
+                        <artifactId>commons-lang3</artifactId>
+                        <version>${commons-lang3.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.codehaus.plexus</groupId>
+                        <artifactId>plexus-utils</artifactId>
+                        <version>${plexus-utils-3.version}</version>
+                    </dependency>
+                </dependencies>
             </plugin>
         </plugins>
     </build>

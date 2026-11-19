@@ -12,10 +12,10 @@ import com.hypertube.auth.repository.RevokedSessionRepository;
 import com.hypertube.auth.repository.UserRepository;
 import com.hypertube.auth.repository.UserSessionRepository;
 import com.hypertube.auth.schema.UserProfile;
+import com.hypertube.auth.security.AuthProperties;
 import com.hypertube.auth.security.AuthTokens;
 import com.hypertube.auth.security.JwtService;
 import com.hypertube.auth.security.SessionPrincipal;
-import com.hypertube.auth.security.TokenProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,13 +25,13 @@ public class TokenService {
     private final UserSessionRepository sessions;
     private final RevokedSessionRepository revocations;
     private final UserRepository users;
-    private final TokenProperties properties;
+    private final AuthProperties properties;
     private final JwtService jwt;
     private final Clock clock;
 
     public TokenService(AuthService auth, UserSessionRepository sessions,
                         RevokedSessionRepository revocations, UserRepository users,
-                        TokenProperties properties, JwtService jwt, Clock clock) {
+                        AuthProperties properties, JwtService jwt, Clock clock) {
         this.auth = auth;
         this.sessions = sessions;
         this.revocations = revocations;

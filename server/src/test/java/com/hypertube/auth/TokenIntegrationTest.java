@@ -30,6 +30,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.config.FixedDelayTask;
+import org.springframework.scheduling.config.ScheduledTask;
+import org.springframework.scheduling.config.ScheduledTaskHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -47,10 +50,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.username=${TEST_DATABASE_USER:postgres}",
         "spring.datasource.password=${TEST_DATABASE_PASSWORD:}",
         "hypertube.auth.handoff-secret=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        "hypertube.auth.jwt.secret=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZg==",
-        "hypertube.auth.tokens.access-ttl=10m",
-        "hypertube.auth.tokens.refresh-ttl=30d",
-        "hypertube.auth.tokens.secure-cookies=true",
+        "hypertube.auth.jwt-secret=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZg==",
+        "hypertube.auth.access-ttl=10m",
+        "hypertube.auth.refresh-ttl=30d",
+        "hypertube.auth.secure-cookies=true",
         "hypertube.auth.cleanup-interval=PT24H"
 })
 @AutoConfigureMockMvc
@@ -64,6 +67,7 @@ class TokenIntegrationTest {
     @Autowired private JwtService jwt;
     @Autowired private MutableClock clock;
     @Autowired private SessionCleanupService cleanup;
+    @Autowired private ScheduledTaskHolder scheduledTasks;
 
     @BeforeEach
     void reset() {
@@ -242,6 +246,16 @@ class TokenIntegrationTest {
         mvc.perform(withCsrf("/api/auth/logout", device.refresh())).andExpect(status().isNoContent());
         refresh(device.refresh()).andExpect(status().isUnauthorized());
         assertThat(revoked(device.id())).isTrue();
+    }
+
+    @Test
+    void schedulesCleanupUsingTheConfiguredInterval() {
+        assertThat(scheduledTasks.getScheduledTasks().stream().map(ScheduledTask::getTask)
+                .filter(FixedDelayTask.class::isInstance).map(FixedDelayTask.class::cast))
+                .singleElement().satisfies(task -> {
+                    assertThat(task.getIntervalDuration()).isEqualTo(Duration.ofHours(24));
+                    assertThat(task.getInitialDelayDuration()).isEqualTo(Duration.ofHours(24));
+                });
     }
 
     @Test

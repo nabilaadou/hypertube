@@ -13,7 +13,7 @@ import com.hypertube.auth.repository.LoginHandoffRepository;
 import com.hypertube.auth.repository.UserRepository;
 import com.hypertube.auth.schema.OAuthIdentity;
 import com.hypertube.auth.schema.UserProfile;
-import org.springframework.beans.factory.annotation.Value;
+import com.hypertube.auth.security.AuthProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,11 +24,11 @@ public class AuthService {
     private final UserRepository users;
     private final byte[] handoffAuthorization;
 
-    AuthService(LoginHandoffRepository handoffs, UserRepository users,
-                @Value("${hypertube.auth.handoff-secret}") String secret) {
+    AuthService(LoginHandoffRepository handoffs, UserRepository users, AuthProperties properties) {
         this.handoffs = handoffs;
         this.users = users;
-        this.handoffAuthorization = secret.length() >= 64 ? digest("Bearer " + secret) : null;
+        String secret = properties.handoffSecret();
+        this.handoffAuthorization = secret != null && secret.length() >= 64 ? digest("Bearer " + secret) : null;
     }
 
     public boolean isHandoffAuthorized(String authorization) {

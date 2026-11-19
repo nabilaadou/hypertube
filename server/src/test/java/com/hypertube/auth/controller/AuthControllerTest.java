@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = AuthController.class, properties = "hypertube.auth.tokens.secure-cookies=true")
+@WebMvcTest(controllers = AuthController.class, properties = "hypertube.auth.secure-cookies=true")
 @Import({SecurityConfiguration.class, AuthCookies.class, AuthControllerTest.ProtectedMutation.class})
 class AuthControllerTest {
     private static final UUID CODE = UUID.fromString("7d87e5dc-cf71-421f-9e7c-853155898d67");

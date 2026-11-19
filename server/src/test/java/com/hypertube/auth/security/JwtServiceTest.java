@@ -1,6 +1,7 @@
 package com.hypertube.auth.security;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Base64;
@@ -25,8 +26,7 @@ class JwtServiceTest {
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
     private static final UUID SESSION = UUID.fromString("49843834-5e9a-4c98-9c6d-e66a5cdd6290");
     private static final UUID TOKEN = UUID.fromString("858eb476-2f12-43f5-9625-c762d6402be9");
-    private final JwtService jwt = new JwtService(new JwtProperties(
-            Base64.getEncoder().encodeToString(KEY), "hypertube", "hypertube-api"), CLOCK);
+    private final JwtService jwt = new JwtService(authProperties(Base64.getEncoder().encodeToString(KEY)), CLOCK);
 
     @Test
     void signsAndVerifiesAccessJwtClaims() {
@@ -102,11 +102,16 @@ class JwtServiceTest {
     @Test
     void requiresAnExplicitStrongSigningKeyAndDoesNotExposeItInToString() {
         for (String key : List.of("", "invalid base64", Base64.getEncoder().encodeToString(new byte[16]))) {
-            var properties = new JwtProperties(key, "hypertube", "hypertube-api");
+            var properties = authProperties(key);
             assertThatThrownBy(() -> new JwtService(properties, CLOCK)).isInstanceOf(IllegalArgumentException.class);
         }
-        var properties = new JwtProperties(Base64.getEncoder().encodeToString(KEY), "hypertube", "hypertube-api");
-        assertThat(properties.toString()).doesNotContain(properties.secret());
+        var properties = authProperties(Base64.getEncoder().encodeToString(KEY));
+        assertThat(properties.toString()).doesNotContain(properties.jwtSecret(), properties.handoffSecret());
+    }
+
+    private static AuthProperties authProperties(String jwtSecret) {
+        return new AuthProperties("test-handoff-secret", Duration.ofMinutes(10), Duration.ofDays(30),
+                true, Duration.ofMinutes(15), jwtSecret, "hypertube", "hypertube-api");
     }
 
     private JwtClaimsSet.Builder validClaims() {

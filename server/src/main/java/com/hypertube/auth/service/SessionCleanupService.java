@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SessionCleanupService {
+    private static final String CLEANUP_INTERVAL =
+            "#{@'hypertube.auth-com.hypertube.auth.security.AuthProperties'.cleanupInterval()}";
     private final UserSessionRepository sessions;
     private final RevokedSessionRepository revocations;
     private final Clock clock;
@@ -19,8 +21,7 @@ public class SessionCleanupService {
         this.clock = clock;
     }
 
-    @Scheduled(fixedDelayString = "${hypertube.auth.cleanup-interval}",
-            initialDelayString = "${hypertube.auth.cleanup-interval}")
+    @Scheduled(fixedDelayString = CLEANUP_INTERVAL, initialDelayString = CLEANUP_INTERVAL)
     @Transactional
     public void cleanup() {
         var now = clock.instant();

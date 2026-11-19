@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
 public class AuthCookies {
     public static final String ACCESS = "hypertube_access";
     public static final String REFRESH = "hypertube_refresh";
-    private final TokenProperties properties;
-    public AuthCookies(TokenProperties properties) { this.properties = properties; }
+    private final AuthProperties properties;
+    public AuthCookies(AuthProperties properties) { this.properties = properties; }
 
     public HttpHeaders issue(AuthTokens tokens) {
         var headers = new HttpHeaders();

@@ -32,12 +32,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class JwtService {
     private static final SecureRandom RANDOM = new SecureRandom();
-    private final JwtProperties properties;
+    private final AuthProperties properties;
     private final NimbusJwtEncoder encoder;
     private final NimbusJwtDecoder decoder;
     private final Clock clock;
 
-    public JwtService(JwtProperties properties, Clock clock) {
+    public JwtService(AuthProperties properties, Clock clock) {
         this.properties = properties;
         this.clock = clock;
         var key = properties.signingKey();
@@ -47,11 +47,11 @@ public class JwtService {
         timestamps.setClock(clock);
         timestamps.setAllowEmptyExpiryClaim(false);
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(timestamps,
-                new JwtIssuerValidator(properties.issuer()), new JwtTypeValidator("at+jwt"), this::validateClaims));
+                new JwtIssuerValidator(properties.jwtIssuer()), new JwtTypeValidator("at+jwt"), this::validateClaims));
     }
 
     public String issueAccessToken(long userId, UUID sessionId, UUID tokenId, Instant issuedAt, Instant expiresAt) {
-        var claims = JwtClaimsSet.builder().issuer(properties.issuer()).audience(List.of(properties.audience()))
+        var claims = JwtClaimsSet.builder().issuer(properties.jwtIssuer()).audience(List.of(properties.jwtAudience()))
                 .subject(Long.toString(userId)).id(tokenId.toString()).issuedAt(issuedAt).expiresAt(expiresAt)
                 .claim("sid", sessionId.toString()).claim("token_use", "access").build();
         return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).type("at+jwt").build(), claims))
@@ -87,7 +87,7 @@ public class JwtService {
     private OAuth2TokenValidatorResult validateClaims(Jwt jwt) {
         try {
             AccessClaims claims = claims(jwt);
-            if (claims.userId() > 0 && jwt.getAudience().contains(properties.audience())
+            if (claims.userId() > 0 && jwt.getAudience().contains(properties.jwtAudience())
                     && "access".equals(jwt.getClaimAsString("token_use"))
                     && jwt.getIssuedAt() != null && !jwt.getIssuedAt().isAfter(clock.instant())
                     && claims.expiresAt() != null && claims.expiresAt().isAfter(jwt.getIssuedAt())

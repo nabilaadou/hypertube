@@ -27,7 +27,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
-@EnableConfigurationProperties({TokenProperties.class, JwtProperties.class})
+@EnableConfigurationProperties(AuthProperties.class)
 public class SecurityConfiguration {
     @Bean
     Clock tokenClock() {
@@ -35,7 +35,7 @@ public class SecurityConfiguration {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, TokenService tokens, TokenProperties properties,
+    SecurityFilterChain securityFilterChain(HttpSecurity http, TokenService tokens, AuthProperties properties,
             @Qualifier("handlerExceptionResolver") HandlerExceptionResolver errors)
             throws Exception {
         var csrfTokens = CookieCsrfTokenRepository.withHttpOnlyFalse();

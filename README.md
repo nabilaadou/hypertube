@@ -26,23 +26,17 @@ make up
 
 Open `http://localhost:3000`. The API is available at `http://localhost:8080/api/health`, and the auth provider page is at `http://localhost:4567`. `make up` starts PostgreSQL, Spring Boot, Next.js, and the auth service together. Compose reloads Next.js when you edit the frontend and restarts Spring Boot when you edit backend source files. Changes to dependency manifests rebuild the corresponding image.
 
+The `assets` service downloads the landing page media from the public R2 bucket before the client starts. The service verifies each file against its SHA-256 hash and stores it in Docker volumes. Later starts reuse verified files. If a download fails or a checksum differs, the client waits until the asset is available and a subsequent start succeeds.
+
 PostgreSQL is available at `localhost:5432` from the host and `postgres:5432` from other services. The database, user, and password come from the root `.env` when the database volume is first initialized.
 
 Compose reads service settings from the root `.env`. If you already have one, add any missing settings from `.env.example`. To change a host port, edit `HYPERTUBE_CLIENT_PORT`, `HYPERTUBE_SERVER_PORT`, `HYPERTUBE_AUTH_PORT`, or `HYPERTUBE_POSTGRES_PORT` in `.env` and restart `make up`. For example, `HYPERTUBE_CLIENT_PORT=3100` serves the frontend at `http://localhost:3100`.
 
-Press Ctrl+C to stop the services. Run `make down` to remove the containers and network while keeping PostgreSQL data. Run `make clean` to also delete the database volume, orphaned project containers, and images built for Hypertube.
+Press Ctrl+C to stop the services. Run `make down` to remove the containers and network while keeping PostgreSQL data and downloaded assets. Run `make clean` to also delete the database and asset volumes, orphaned project containers, and images built for Hypertube.
 
 ## Run without Docker
 
 Install JDK 21 or newer, Maven 3.9 or newer, Node.js 24 or newer, and npm.
-
-From the repository root, copy the local configuration template.
-
-```sh
-cp client/.env.example client/.env
-```
-
-Set `BACKEND_URL=http://localhost:8080` in `client/.env`. Next.js reads this value on the server. Keep local credentials in ignored `.env` files and commit only variable names and placeholders in `.env.example`.
 
 Start the API in one terminal.
 
@@ -62,10 +56,39 @@ Start Next.js in a second terminal.
 ```sh
 cd client
 npm ci
+npm run prepare:media
 npm run dev
 ```
 
-Open `http://localhost:3000`. The home page reports whether it can reach the API at `GET /api/health`. If `BACKEND_URL` is missing or invalid, the page tells you how to configure it. Restart Next.js after changing `client/.env`.
+Open `http://localhost:3000` to view the landing page.
+
+## Prepare the landing page media
+
+Docker downloads the files from R2 into persistent volumes. To run without Docker, run `npm run prepare:media` from `client/`. It copies the tracked theater GLB from `models/` to `client/public/models/`. It also copies `reel.mp4`, `reel-poster.jpg`, and `theater.png` from the local `design-assets/` folder to `client/public/media/` when available.
+
+The public copies are ignored by Git. A fresh clone includes the theater model. Supply the movie edit and preview images locally in `design-assets/`, then rerun the command. Missing source files produce a message and leave any existing public copy available. The video preview displays an unavailable message when the edit cannot load.
+
+The media script prefers `design-assets/reel-with-sound.mp4` when present. To prepare it from the supplied two-track reel, run this command from the repository root with FFmpeg installed.
+
+```sh
+ffmpeg -i design-assets/reel.mp4 -map 0:v:0 -map 0:a:1 -c copy -movflags +faststart design-assets/reel-with-sound.mp4
+(cd client && npm run prepare:media)
+```
+
+The command copies the original video and its audible second audio track. For a reel that already has a single audible track, supply it as `design-assets/reel.mp4`.
+
+The served model URL is `/models/private-home-cinema-textured.glb`. The edit and image URLs begin with `/media/`. The media paths and poster lineup are in `client/app/data/movies.ts`.
+
+The public R2 bucket must contain these objects. The setup checks their hashes against the manifest in `client/scripts/fetch-assets.mjs`.
+
+| R2 object | Local source |
+| --- | --- |
+| `media/reel.mp4` | `design-assets/reel-with-sound.mp4` |
+| `media/reel-poster.jpg` | `design-assets/reel-poster.jpg` |
+| `media/theater.png` | `design-assets/theater.png` |
+| `models/private-home-cinema-textured.glb` | `models/private-home-cinema-textured.glb` |
+
+To change the bucket, set `ASSET_BASE_URL` in the root `.env`. To update an asset, upload the replacement and update its SHA-256 hash in the manifest in the same change.
 
 ## Test 42 and Google sign-in
 
@@ -150,4 +173,4 @@ docker stop hypertube-session-tests
 
 `TEST_DATABASE_USER` defaults to `postgres`. Without `TEST_DATABASE_URL`, the PostgreSQL integration tests are skipped and the controller/security tests still run.
 
-With both apps running, `curl -fsS http://localhost:8080/api/health` should return `{"status":"UP"}` and the home page should show “API is online.” To check the configuration diagnostic, clear `BACKEND_URL` in the `.env` used to start the client, restart it, and reload the page.
+With the API running, `curl -fsS http://localhost:8080/api/health` should return `{"status":"UP"}`.

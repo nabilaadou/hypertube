@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, DM_Sans, IBM_Plex_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
@@ -26,6 +26,8 @@ const monoFont = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400"], variable: 
 export const metadata: Metadata = {
   title: "Hypertube",
 };
+
+export const viewport: Viewport = { viewportFit: "cover" };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (

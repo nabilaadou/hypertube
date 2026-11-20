@@ -1,3 +1,13 @@
+export const compactLandingQuery = "(width < 48rem), (height < 32rem) and (pointer: coarse)";
+export const cinemaCameraAspect = 1440 / 900;
+
+export function cinemaFrame(width: number, height: number, compact: boolean) {
+  const roomWidth = Math.max(width, height * cinemaCameraAspect);
+  const roomHeight = roomWidth / cinemaCameraAspect;
+  const zoom = Math.min(1, width / roomHeight / (compact ? 0.88 : 0.84));
+  return { roomWidth, roomHeight, zoom };
+}
+
 export const projectionScreenAspect = 1.56083 / 0.68611;
 
 type ScreenPoint = { x: number; y: number };
@@ -31,19 +41,24 @@ export function projectVideo({
   world,
   corners,
   progress,
+  compact,
 }: {
   stage: HTMLElement;
   layer: HTMLElement;
   world: HTMLElement;
   corners: ScreenCorners | null;
   progress: number;
+  compact: boolean;
 }) {
   const width = stage.clientWidth;
   const height = stage.clientHeight;
   if (!width || !height) return;
 
-  const roomWidth = Math.max(width, height * 1.6);
-  const roomHeight = roomWidth / 1.6;
+  const frame = cinemaFrame(width, height, compact);
+  const previewScale = compact ? frame.zoom : 1;
+  const roomWidth = frame.roomWidth * previewScale;
+  const roomHeight = frame.roomHeight * previewScale;
+  if (compact) world.style.setProperty("--cinema-preview-width", `${roomWidth}px`);
   const left = (width - roomWidth) / 2 + roomWidth * 477 / 1440;
   const top = (height - roomHeight) / 2 + roomHeight * 294 / 900;
   const right = left + roomWidth * 512 / 1440;

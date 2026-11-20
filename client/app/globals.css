@@ -51,6 +51,10 @@ html::-webkit-scrollbar {
   --reveal: 0;
 }
 
+.cinema-runway {
+  min-height: var(--desktop-runway-height);
+}
+
 .cinema-world {
   position: absolute;
   inset: 0;
@@ -448,16 +452,6 @@ html::-webkit-scrollbar {
   opacity: var(--poster-caption);
 }
 
-@media (width < 48rem) {
-  .cinema-stage {
-    --timeline-width: clamp(5.25rem, 28cqw, min(11rem, 27cqh));
-    --timeline-card-drop: 10;
-    --year-marker-inset: 0px;
-    --year-marker-top: calc(100cqh - 4.25rem - var(--year-marker-height));
-    --card-bottom-limit: calc(var(--year-marker-top) - var(--timeline-width) * 1.58 - 3rem);
-  }
-
-}
 
 @media (height < 32rem) {
   .cinema-stage {
@@ -613,4 +607,160 @@ html::-webkit-scrollbar {
   background:
     linear-gradient(45deg, transparent 43%, currentColor 43% 57%, transparent 57%),
     linear-gradient(-45deg, transparent 43%, currentColor 43% 57%, transparent 57%);
+}
+
+@media (width < 48rem), (height < 32rem) and (pointer: coarse) {
+  .cinema-runway {
+    --landing-top-inset: env(safe-area-inset-top, 0px);
+    --landing-bottom-inset: env(safe-area-inset-bottom, 0px);
+    --landing-left-gutter: max(var(--spacing-page), env(safe-area-inset-left, 0px));
+    --landing-right-gutter: max(var(--spacing-page), env(safe-area-inset-right, 0px));
+    min-height: var(--compact-runway-height);
+  }
+
+  .cinema-stage {
+    --timeline-heading-size: clamp(1.75rem, min(9cqw, 8cqh), 3.5rem);
+    --timeline-heading-gap: clamp(0.75rem, 3cqh, 2rem);
+    --timeline-poster-min-top: calc(var(--landing-top-inset) + 4rem + var(--timeline-heading-size) + var(--timeline-heading-gap));
+    --timeline-caption-space: clamp(3.1rem, 6cqh, 3.45rem);
+    --timeline-bottom-space: calc(var(--landing-bottom-inset) + clamp(1.25rem, 5cqh, 2.75rem));
+    --year-marker-height: 2.85rem;
+    --timeline-poster-space: calc(100cqh - var(--timeline-poster-min-top) - var(--timeline-caption-space) - var(--year-marker-height) - var(--timeline-bottom-space));
+    --timeline-width: max(2rem, min(59cqw, 16rem, calc(var(--timeline-poster-space) / 1.6)));
+    --timeline-poster-top: calc(var(--timeline-poster-min-top) + max(0px, (var(--timeline-poster-space) - var(--timeline-width) * 1.5) / 2));
+    --card-step: calc(50cqw + var(--timeline-width) * 0.38);
+    --year-marker-inset: 0px;
+    --year-marker-top: calc(var(--timeline-poster-top) + var(--timeline-width) * 1.5 + var(--timeline-caption-space));
+    --grid-origin: calc(50cqw - var(--card-step) / 2 + var(--track-travel));
+    --quote-scale: 3.45;
+  }
+
+  .cinema-canvas {
+    width: 100cqw;
+    height: 100cqh;
+  }
+
+  .cinema-room {
+    inset: 50% auto auto 50%;
+    width: var(--cinema-preview-width, 180cqw);
+    aspect-ratio: 1.6;
+    transform: translate(-50%, -50%);
+    background-size: 100% 100%;
+    mask-image: linear-gradient(transparent, #000 12%, #000 88%, transparent);
+  }
+
+  .cinema-world:has(.cinema-canvas[data-live="true"]) .cinema-room {
+    visibility: hidden;
+  }
+
+  .cinema-header,
+  .cinema-controls {
+    padding-left: var(--landing-left-gutter);
+    padding-right: var(--landing-right-gutter);
+  }
+
+  .cinema-header {
+    padding-top: calc(var(--landing-top-inset) + 0.5rem);
+    padding-bottom: 0;
+  }
+
+  .cinema-header > svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .cinema-controls {
+    padding-bottom: calc(var(--landing-bottom-inset) + 0.75rem);
+  }
+
+  .cinema-stage[data-timeline-active="true"] .cinema-controls {
+    visibility: hidden;
+  }
+
+  .cinema-timeline-heading {
+    top: calc(var(--timeline-poster-top) - var(--timeline-heading-size) - var(--timeline-heading-gap));
+    font-size: var(--timeline-heading-size);
+    line-height: 1;
+    color: #ad92c2;
+    background: none;
+  }
+
+  .cinema-track-card {
+    --card-top-position: var(--timeline-poster-top);
+  }
+
+  .cinema-card-caption {
+    top: calc(100% + 0.6rem);
+    max-width: min(14rem, var(--card-step));
+    font-size: 0.69rem;
+    letter-spacing: 0.095em;
+  }
+
+  .cinema-wall-poster-trigger::after {
+    content: "";
+    position: absolute;
+    inset: -0.375rem;
+  }
+
+  .cinema-trailer-hint {
+    padding-inline: 0.55rem;
+    font-size: 0.65rem;
+    white-space: nowrap;
+  }
+
+  .cinema-year-track {
+    border-block: 1px solid #d5c2dd25;
+    background: #0c091370;
+  }
+
+  .cinema-year-track > button {
+    font-size: clamp(1.65rem, 8cqw, 2.7rem);
+  }
+
+  .cinema-year-track > button > span {
+    transform: none;
+  }
+
+  .hypertube-quote {
+    gap: clamp(1.25rem, 4.25cqh, 2.25rem);
+    max-width: calc(100cqw - var(--landing-left-gutter) - var(--landing-right-gutter));
+  }
+
+  .hypertube-quote-marks {
+    font-size: clamp(2.3rem, 9cqw, 3.5rem);
+  }
+
+  .hypertube-statement-title {
+    font-size: clamp(1.5rem, min(10.2cqw, 10.5cqh), 3.5rem);
+    line-height: 1.22;
+  }
+
+  .trailer-scrim {
+    background: #000c;
+  }
+
+  .trailer-stage {
+    padding: calc(var(--landing-top-inset) + 0.75rem) var(--landing-right-gutter) calc(var(--landing-bottom-inset) + 3.75rem) var(--landing-left-gutter);
+  }
+
+  .trailer-panel {
+    width: min(100%, calc((100svh - var(--landing-top-inset) - var(--landing-bottom-inset) - 4.5rem) * 16 / 9));
+  }
+
+  .trailer-close {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .trailer-link {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+}
+
+@media (hover: none) {
+  .cinema-stage[data-timeline-active="true"] .cinema-track-card[data-active="true"] .cinema-trailer-hint {
+    opacity: 1;
+  }
 }

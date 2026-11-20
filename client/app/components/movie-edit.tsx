@@ -9,7 +9,7 @@ import Image from "next/image";
 import { type CSSProperties, type PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { movies, cinemaMedia, type Movie } from "../data/movies";
 import type { createCinemaPaperSurface, PaperPose } from "./cinema-paper-surface";
-import { projectVideo, type ScreenCorners } from "./cinema-projection";
+import { compactLandingQuery, projectVideo, type ScreenCorners } from "./cinema-projection";
 import { HypertubeStatement } from "./hypertube-statement";
 import { Noise } from "./noise";
 import { createQuoteParticleSurface } from "./quote-particle-surface";
@@ -19,13 +19,31 @@ import { useCinemaReveal } from "./use-cinema-reveal";
 const CinemaScene = dynamic(() => import("./cinema-scene"), { ssr: false });
 
 const featured = movies[0];
-const handoffViewports = 1.8;
-const timelineExitViewports = 2.35;
-const quoteHoldViewports = 0.6;
-const filmViewports = 0.66;
+type LandingTiming = {
+  handoff: number;
+  perFilm: number;
+  quoteReveal: number;
+  quoteHold: number;
+};
+
+const desktopTiming: LandingTiming = { handoff: 1.8, perFilm: 0.66, quoteReveal: 2.35, quoteHold: 0.6 };
+const compactTiming: LandingTiming = { handoff: 1.42, perFilm: 0.52, quoteReveal: 1.65, quoteHold: 0.5 };
+const desktopLayout = { compact: false, timing: desktopTiming };
+const compactLayout = { compact: true, timing: compactTiming };
 const lastFilm = movies.length - 1;
-const timelineStart = handoffViewports;
-const timelineEnd = timelineStart + filmViewports * lastFilm;
+
+function filmPosition(timing: LandingTiming, index: number) {
+  return timing.handoff + timing.perFilm * index;
+}
+
+function runwayHeight(timing: LandingTiming) {
+  return `${(1 + filmPosition(timing, lastFilm) + timing.quoteReveal + timing.quoteHold) * 100}svh`;
+}
+
+const runwayStyle: CSSProperties & Record<"--desktop-runway-height" | "--compact-runway-height", string> = {
+  "--desktop-runway-height": runwayHeight(desktopTiming),
+  "--compact-runway-height": runwayHeight(compactTiming),
+};
 const paperLiftOff = 0.001;
 const timelineCardHeights = [15, 37, 9, 32, 20];
 
@@ -65,6 +83,7 @@ export function MovieEdit() {
   const paperPose = useRef<PaperPose>({ curl: 0, twist: 0, ripple: 0, turn: 0 });
   const corners = useRef<ScreenCorners | null>(null);
   const revealProgress = useRef(0);
+  const landingLayout = useRef(desktopLayout);
 
   const updateProjection = useCallback((progress: number) => {
     revealProgress.current = progress;
@@ -72,7 +91,7 @@ export function MovieEdit() {
     const section = layer?.parentElement;
     const world = worldLayer.current;
     if (layer && section && world) {
-      projectVideo({ stage: section, layer, world, corners: corners.current, progress });
+      projectVideo({ stage: section, layer, world, corners: corners.current, progress, compact: landingLayout.current.compact });
     }
   }, []);
 
@@ -86,6 +105,7 @@ export function MovieEdit() {
   const lenis = useLenis();
   const [wallPosterCorners, setWallPosterCorners] = useState<ScreenCorners | null>(null);
   const [wallArtworkVisible, setWallArtworkVisible] = useState(true);
+  const [layout, setLayout] = useState(desktopLayout);
   const [filmIndex, setFilmIndex] = useState(0);
   const [timelineVisible, setTimelineVisible] = useState(false);
   const [timelineLeaving, setTimelineLeaving] = useState(false);
@@ -127,9 +147,16 @@ export function MovieEdit() {
     motion.add({
       standard: "(prefers-reduced-motion: no-preference)",
       reduced: "(prefers-reduced-motion: reduce)",
+      compact: compactLandingQuery,
     }, ({ conditions }) => {
-      const reduced = conditions?.reduced;
-      const scrub = reduced ? true : 0.3;
+      const { reduced, compact } = conditions ?? {};
+      const currentLayout = compact ? compactLayout : desktopLayout;
+      const { timing } = currentLayout;
+      landingLayout.current = currentLayout;
+      setLayout(currentLayout);
+      updateProjection(revealProgress.current);
+      const timelineEnd = filmPosition(timing, lastFilm);
+      const scrub = reduced ? true : compact ? 0.18 : 0.3;
       const quoteParticles = !reduced && CSS.supports("background-clip", "text") && quoteCanvas.current && quoteTitle.current
         ? createQuoteParticleSurface(quoteCanvas.current, quoteTitle.current)
         : null;
@@ -141,7 +168,7 @@ export function MovieEdit() {
         },
         scrollTrigger: {
           trigger: scrollArea,
-          start: () => `top+=${section.clientHeight * timelineStart} top`,
+          start: () => `top+=${section.clientHeight * timing.handoff} top`,
           end: () => `top+=${section.clientHeight * timelineEnd} top`,
           scrub,
           onUpdate: syncTimeline,
@@ -161,7 +188,7 @@ export function MovieEdit() {
         scrollTrigger: {
           trigger: scrollArea,
           start: () => `top+=${section.clientHeight * timelineEnd} top`,
-          end: () => `+=${section.clientHeight * timelineExitViewports}`,
+          end: () => `+=${section.clientHeight * timing.quoteReveal}`,
           scrub,
         },
       });
@@ -185,8 +212,8 @@ export function MovieEdit() {
           .to(section, { "--timeline-content-opacity": 0, duration: 0.08, ease: "none" }, 0.43)
           .set(section, { "--quote-visibility": "visible" }, 0.25)
           .to(section, { "--quote-opacity": 1, duration: 0.32, ease: "sine.inOut" }, 0.25)
-          .to(section, { "--quote-scale": 3.75, duration: 0.25, ease: "none" }, 0.25)
-          .to(section, { "--quote-scale": 2.15, duration: 0.2, ease: "none" }, 0.5)
+          .to(section, { "--quote-scale": compact ? 2.65 : 3.75, duration: 0.25, ease: "none" }, 0.25)
+          .to(section, { "--quote-scale": compact ? 1.65 : 2.15, duration: 0.2, ease: "none" }, 0.5)
           .to(section, { "--quote-scale": 1.15, duration: 0.2, ease: "sine.out" }, 0.7)
           .to(section, { "--quote-scale": 1, duration: 0.1, ease: "sine.out" }, 0.9)
           .to(section, { "--quote-background": 1, duration: 0.34, ease: "sine.inOut" }, 0.65)
@@ -199,7 +226,7 @@ export function MovieEdit() {
         scrollTrigger: {
           trigger: scrollArea,
           start: "top top",
-          end: () => `+=${section.clientHeight * handoffViewports}`,
+          end: () => `+=${section.clientHeight * timing.handoff}`,
           scrub: true,
         },
       });
@@ -228,7 +255,7 @@ export function MovieEdit() {
           if (section.style.getPropertyValue("--poster-paper") === "1") paperSurface.current?.draw(pose);
         });
         animation
-          .fromTo(section, { "--timeline-entry": 1.65 }, { "--timeline-entry": 0, duration: 1, ease: "none" }, 0)
+          .fromTo(section, { "--timeline-entry": compact ? 0.9 : 1.65 }, { "--timeline-entry": 0, duration: 1, ease: "none" }, 0)
           .set(section, { "--wall-poster-visibility": "hidden", "--featured-poster-visibility": "visible", "--featured-poster-opacity": 1, "--poster-paper": 1 }, paperLiftOff)
           .to(section, { "--poster-travel": 1, duration: 0.98, ease: "sine.out" }, paperLiftOff)
           .to(pose, { turn: 360, duration: 0.61, ease: "power2.inOut" }, 0.09)
@@ -354,7 +381,7 @@ export function MovieEdit() {
     const section = stage.current;
     if (!scrollArea || !section) return;
 
-    const distance = timelineStart + filmViewports * index;
+    const distance = filmPosition(landingLayout.current.timing, index);
     const top = window.scrollY + scrollArea.getBoundingClientRect().top + section.clientHeight * distance + 1;
     if (lenis) lenis.scrollTo(top);
     else window.scrollTo({ top });
@@ -395,7 +422,7 @@ export function MovieEdit() {
   const playbackAction = playback === "playing" ? "Pause" : "Play";
 
   return (
-    <div ref={runway} style={{ minHeight: `${(1 + timelineEnd + timelineExitViewports + quoteHoldViewports) * 100}svh` }}>
+    <div ref={runway} className="cinema-runway" style={runwayStyle}>
       <section id="opening" aria-labelledby="opening-title" ref={stage} data-phase={phase} data-timeline-active={timelineVisible} className="cinema-stage sticky top-0 isolate h-svh overflow-clip bg-theater text-paper">
         <div ref={worldLayer} className="cinema-world" data-lights-on={lightsOn}>
           <div aria-hidden="true" className="cinema-room" style={{ backgroundImage: `url(${cinemaMedia.theaterImage})` }} />
@@ -432,7 +459,7 @@ export function MovieEdit() {
           )}
         </div>
 
-        <header className={`absolute inset-x-0 top-0 z-10 ${phase === "cinema" ? "grid" : "sr-only"} grid-cols-[1fr_auto_1fr] items-center px-page py-6 md:py-8`} inert={phase !== "cinema"}>
+        <header className={`cinema-header absolute inset-x-0 top-0 z-10 ${phase === "cinema" ? "grid" : "sr-only"} grid-cols-[1fr_auto_1fr] items-center px-page py-6 md:py-8`} inert={phase !== "cinema"}>
           <svg aria-hidden="true" viewBox="0 0 40 40" fill="none" className="size-8">
             <path d="M6 6v28m28-28v28M6 12l14 9 14-9M6 22l14 9 14-9" stroke="currentColor" strokeWidth="3.5" strokeLinecap="square" />
           </svg>
@@ -469,7 +496,7 @@ export function MovieEdit() {
                 aria-current={filmIndex === index ? "true" : undefined}
                 aria-label={`${film.releaseYear}, ${film.title}`}
                 data-trailer-side={trailerSide(film.releaseYear)}
-                tabIndex={Math.abs(filmIndex - index) <= 1 ? 0 : -1}
+                tabIndex={Math.abs(filmIndex - index) <= (layout.compact ? 0 : 1) ? 0 : -1}
                 onClick={() => goToFilm(index)}
                 style={{ "--index": index } as CSSProperties}
               >
@@ -498,6 +525,7 @@ export function MovieEdit() {
         {phase === "cinema" && movies.map((movie, index) => (
           <figure
             key={movie.releaseYear}
+            data-active={index === filmIndex}
             data-trailer-side={trailerSide(movie.releaseYear)}
             className={`cinema-track-card ${index === 0 ? "cinema-featured-poster" : ""}`}
             style={{
@@ -532,7 +560,7 @@ export function MovieEdit() {
                 className="cinema-card-artwork relative aspect-[2/3] h-auto w-full object-cover"
               />
               {index === 0 && <canvas ref={paperCanvas} inert className="cinema-paper-sheet" />}
-              <span aria-hidden="true" className="absolute right-2 bottom-2 z-[3] rounded-full bg-black/80 px-3 py-1 font-mono text-xs opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Play trailer</span>
+              <span aria-hidden="true" className="cinema-trailer-hint absolute right-2 bottom-2 z-[3] rounded-full bg-black/80 px-3 py-1 font-mono text-xs opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Play trailer</span>
             </button>
             <figcaption className="cinema-card-caption">{movie.title}</figcaption>
           </figure>

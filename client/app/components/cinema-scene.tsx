@@ -25,7 +25,7 @@ import {
 import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { movies, cinemaMedia } from "../data/movies";
-import { projectionScreenAspect, type ScreenCorners } from "./cinema-projection";
+import { cinemaCameraAspect, cinemaFrame, compactLandingQuery, projectionScreenAspect, type ScreenCorners } from "./cinema-projection";
 import { createCinemaWallPoster } from "./cinema-wall-poster";
 
 function disposeModel(model: Object3D) {
@@ -86,8 +86,8 @@ export default function CinemaScene({
     renderer.toneMappingExposure = 1.15;
 
     const scene = new Scene();
-    const aspect = 1440 / 900;
-    const minimumCinemaAspect = 0.84;
+    const compact = window.matchMedia(compactLandingQuery);
+    const aspect = cinemaCameraAspect;
     // Match the Blender camera after converting its Z-up coordinates to Y-up.
     const camera = new PerspectiveCamera(MathUtils.radToDeg(2 * Math.atan(36 / aspect / 42)), aspect, 0.01, 20);
     camera.position.set(-0.44, 0.28, -2.53);
@@ -176,7 +176,8 @@ export default function CinemaScene({
       const stageHeight = stage?.clientHeight ?? height;
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
-      camera.zoom = Math.min(1, stageWidth / height / minimumCinemaAspect);
+      const frame = cinemaFrame(stageWidth, stageHeight, compact.matches);
+      camera.zoom = frame.zoom * frame.roomHeight / height;
       camera.updateProjectionMatrix();
       if (screenMesh && stage) {
         camera.updateMatrixWorld();
@@ -209,6 +210,7 @@ export default function CinemaScene({
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
     if (canvas.parentElement) observer.observe(canvas.parentElement);
+    compact.addEventListener("change", resize, { signal: events.signal });
     video.addEventListener("loadeddata", draw, { signal: events.signal });
     canvas.addEventListener("webglcontextlost", (event) => {
       event.preventDefault();

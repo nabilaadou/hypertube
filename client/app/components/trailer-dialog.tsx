@@ -87,15 +87,15 @@ export function TrailerDialog({ movie, origin, onClose }: TrailerDialogProps) {
       data-lenis-prevent
     >
       <h2 id="trailer-title" className="sr-only">{movie.title}</h2>
-      <div ref={scrimRef} aria-hidden="true" className="absolute inset-0 bg-black/15" />
-      <div className="absolute inset-0 grid place-items-center">
-        <div ref={panelRef} className="relative aspect-video w-[min(92vw,140svh)] perspective-[1100px] md:w-[min(70vw,140svh)]">
+      <div ref={scrimRef} aria-hidden="true" className="trailer-scrim absolute inset-0 bg-black/15" />
+      <div className="trailer-stage absolute inset-0 grid place-items-center">
+        <div ref={panelRef} className="trailer-panel relative aspect-video w-[min(92vw,140svh)] perspective-[1100px] md:w-[min(70vw,140svh)]">
           <div ref={controlsRef} className="pointer-events-none absolute inset-0 z-10">
             <button
               type="button"
               aria-label="Close trailer"
               onClick={dismiss}
-              className="pointer-events-auto absolute top-2 right-2 grid size-10 cursor-pointer place-items-center rounded-full bg-black/80 text-2xl leading-none hover:bg-black"
+              className="trailer-close pointer-events-auto absolute top-2 right-2 grid size-10 cursor-pointer place-items-center rounded-full bg-black/80 text-2xl leading-none hover:bg-black"
             >
               <span aria-hidden="true">×</span>
             </button>
@@ -103,7 +103,7 @@ export function TrailerDialog({ movie, origin, onClose }: TrailerDialogProps) {
               href={`https://www.youtube.com/watch?v=${movie.trailerId}`}
               target="_blank"
               rel="noreferrer"
-              className="pointer-events-auto absolute top-full right-0 mt-2 whitespace-nowrap rounded bg-black/80 px-2 py-1 text-xs underline"
+              className="trailer-link pointer-events-auto absolute top-full right-0 mt-2 whitespace-nowrap rounded bg-black/80 px-2 py-1 text-xs underline"
             >
               Watch trailer on YouTube
             </a>

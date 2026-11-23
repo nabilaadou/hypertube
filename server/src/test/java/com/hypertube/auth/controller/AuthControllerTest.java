@@ -14,6 +14,7 @@ import com.hypertube.auth.security.SessionPrincipal;
 import com.hypertube.auth.service.AuthService;
 import com.hypertube.auth.service.TokenService;
 import com.hypertube.auth.service.LocalAuthService;
+import com.hypertube.auth.service.PasswordResetService;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,7 @@ class AuthControllerTest {
     @MockitoBean private AuthService auth;
     @MockitoBean private TokenService tokens;
     @MockitoBean private LocalAuthService local;
+    @MockitoBean private PasswordResetService passwordReset;
 
     @Test
     void localEndpointsRequireCsrfAndIssueSessionCookies() throws Exception {

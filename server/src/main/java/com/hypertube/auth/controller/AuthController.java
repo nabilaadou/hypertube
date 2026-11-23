@@ -6,12 +6,15 @@ import com.hypertube.auth.schema.OAuthIdentity;
 import com.hypertube.auth.schema.UserProfile;
 import com.hypertube.auth.schema.LoginRequest;
 import com.hypertube.auth.schema.RegistrationRequest;
+import com.hypertube.auth.schema.PasswordResetRequest;
+import com.hypertube.auth.schema.PasswordResetConfirmation;
 import com.hypertube.auth.security.AuthCookies;
 import com.hypertube.auth.security.AuthTokens;
 import com.hypertube.auth.security.SessionPrincipal;
 import com.hypertube.auth.service.AuthService;
 import com.hypertube.auth.service.TokenService;
 import com.hypertube.auth.service.LocalAuthService;
+import com.hypertube.auth.service.PasswordResetService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
@@ -35,12 +38,25 @@ class AuthController {
     private final TokenService tokens;
     private final AuthCookies cookies;
     private final LocalAuthService local;
+    private final PasswordResetService passwordReset;
 
-    AuthController(AuthService auth, TokenService tokens, AuthCookies cookies, LocalAuthService local) {
+    AuthController(AuthService auth, TokenService tokens, AuthCookies cookies, LocalAuthService local, PasswordResetService passwordReset) {
         this.auth = auth;
         this.tokens = tokens;
         this.cookies = cookies;
         this.local = local;
+        this.passwordReset = passwordReset;
+    }
+
+    @PostMapping("/api/auth/password-reset/request")
+    ResponseEntity<Void> requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
+        passwordReset.request(request.email());
+        return ResponseEntity.accepted().cacheControl(CacheControl.noStore()).build();
+    }
+
+    @PostMapping("/api/auth/password-reset/confirm")
+    ResponseEntity<AuthResponse> confirmPasswordReset(@Valid @RequestBody PasswordResetConfirmation request) {
+        return localSignedIn(passwordReset.confirm(request));
     }
 
     @PostMapping("/api/auth/register")

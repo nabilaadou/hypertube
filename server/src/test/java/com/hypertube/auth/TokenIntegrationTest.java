@@ -29,6 +29,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.MailSendException;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.config.FixedDelayTask;
 import org.springframework.scheduling.config.ScheduledTask;
@@ -40,6 +45,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -68,6 +74,7 @@ class TokenIntegrationTest {
     @Autowired private MutableClock clock;
     @Autowired private SessionCleanupService cleanup;
     @Autowired private ScheduledTaskHolder scheduledTasks;
+    @MockitoBean private JavaMailSender mail;
 
     @BeforeEach
     void reset() {
@@ -75,6 +82,114 @@ class TokenIntegrationTest {
         jdbc.update("DELETE FROM oauth_login_handoffs");
         jdbc.update("DELETE FROM revoked_sessions");
         clock.set(START);
+    }
+
+    @Test
+    void concurrentResetConfirmationsConsumeTheLinkOnlyOnce() throws Exception {
+        localRegistration("reset_race", "reset-race@example.com");
+        requestReset("reset-race@example.com").andExpect(status().isAccepted());
+        String token = sentResetToken();
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            java.util.concurrent.Callable<Integer> request = () -> {
+                assertThat(start.await(10, TimeUnit.SECONDS)).isTrue();
+                return confirmReset(token).andReturn().getResponse().getStatus();
+            };
+            var first = executor.submit(request);
+            var second = executor.submit(request);
+            start.countDown();
+            assertThat(List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS)).stream().sorted().toList())
+                    .containsExactly(200, 401);
+        }
+    }
+
+    @Test
+    void passwordResetRevokesOldSessionsAndCreatesANewOne() throws Exception {
+        var original = localRegistration("reset_user", "reset@example.com");
+        var other = from(mvc.perform(withCsrf("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"reset_user\",\"password\":\"a-strong-password\"}"))
+                .andExpect(status().isOk()).andReturn());
+        requestReset("reset@example.com").andExpect(status().isAccepted());
+        String token = sentResetToken();
+        assertThat(jdbc.queryForObject("SELECT token_hash FROM password_reset_tokens", String.class))
+                .isEqualTo(jwt.hash(token)).isNotEqualTo(token);
+        var replacement = from(confirmReset(token).andExpect(status().isOk()).andReturn());
+        assertThat(replacement.userId()).isEqualTo(original.userId());
+        me(original).andExpect(status().isUnauthorized());
+        me(other).andExpect(status().isUnauthorized());
+        refresh(original.refresh()).andExpect(status().isUnauthorized());
+        me(replacement).andExpect(status().isOk());
+        confirmReset(token).andExpect(status().isUnauthorized());
+        mvc.perform(withCsrf("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"reset_user\",\"password\":\"a-strong-password\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(withCsrf("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"reset_user\",\"password\":\"new-strong-password\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void resetRequestsAreGenericRateLimitedAndReplacePreviousLinks() throws Exception {
+        localRegistration("reset_second", "reset-second@example.com");
+        requestReset("missing@example.com").andExpect(status().isAccepted());
+        jdbc.update("INSERT INTO users (provider, provider_user_id, email) VALUES ('google', 'reset-provider', 'oauth-reset@example.com')");
+        requestReset("oauth-reset@example.com").andExpect(status().isAccepted());
+        verifyNoInteractions(mail);
+        requestReset("reset-second@example.com").andExpect(status().isAccepted());
+        String first = sentResetToken();
+        requestReset("RESET-SECOND@example.com").andExpect(status().isAccepted());
+        verify(mail, times(1)).send(any(SimpleMailMessage.class));
+        clock.advance(Duration.ofMinutes(1));
+        requestReset("reset-second@example.com").andExpect(status().isAccepted());
+        var messages = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mail, times(2)).send(messages.capture());
+        String second = tokenFrom(messages.getAllValues().getLast());
+        assertThat(second).isNotEqualTo(first);
+        confirmReset(first).andExpect(status().isUnauthorized());
+        clock.advance(Duration.ofMinutes(30));
+        confirmReset(second).andExpect(status().isUnauthorized());
+        cleanup.cleanup();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM password_reset_tokens", Integer.class)).isZero();
+    }
+
+    @Test
+    void mailFailureKeepsThePreviousResetLinkAndGenericResponse() throws Exception {
+        localRegistration("reset_third", "reset-third@example.com");
+        requestReset("reset-third@example.com").andExpect(status().isAccepted());
+        String first = sentResetToken();
+        clock.advance(Duration.ofMinutes(1));
+        doThrow(new MailSendException("smtp failure")).when(mail).send(any(SimpleMailMessage.class));
+        requestReset("reset-third@example.com").andExpect(status().isAccepted());
+        confirmReset(first).andExpect(status().isOk());
+    }
+
+    private Credentials localRegistration(String username, String email) throws Exception {
+        String body = """
+                {"username":"%s","email":"%s","firstName":"First","lastName":"Last","password":"a-strong-password"}
+                """.formatted(username, email);
+        return from(mvc.perform(withCsrf("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andReturn());
+    }
+
+    private ResultActions requestReset(String email) throws Exception {
+        return mvc.perform(withCsrf("/api/auth/password-reset/request").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\"}"));
+    }
+
+    private ResultActions confirmReset(String token) throws Exception {
+        return mvc.perform(withCsrf("/api/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + token + "\",\"password\":\"new-strong-password\"}"));
+    }
+
+    private String sentResetToken() {
+        var message = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mail).send(message.capture());
+        return tokenFrom(message.getValue());
+    }
+
+    private String tokenFrom(SimpleMailMessage message) {
+        String text = message.getText();
+        return text.substring(text.indexOf("?token=") + 7).strip();
     }
 
     @Test

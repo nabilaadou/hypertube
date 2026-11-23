@@ -50,7 +50,7 @@ public class LocalAuthService {
     @Transactional
     public AuthTokens login(LoginRequest request, String address) {
         String key = usernameKey(request.username());
-        var matches = jdbc.query("SELECT id, password_hash FROM users WHERE username_key = ?",
+        var matches = jdbc.query("SELECT id, password_hash FROM users WHERE username_key = ? FOR UPDATE",
                 (row, i) -> new Credential(row.getLong("id"), row.getString("password_hash")), key);
         Credential credential = matches.isEmpty() ? null : matches.getFirst();
         boolean valid = limiter.authenticate(key, address, () -> {

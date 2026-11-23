@@ -115,7 +115,15 @@ Run `make up` again after changing `.env`. Use the same browser-facing hostname 
 
 Local accounts can register with `POST /api/auth/register` using JSON fields `email`, `username`, `firstName`, `lastName`, and `password`. Log in with `POST /api/auth/login` using `username` and `password`. First obtain a CSRF cookie and header value from `GET /api/auth/csrf`, as for other state-changing endpoints. Registration immediately signs the user in; both endpoints return the existing user and expiry response and set the access and refresh cookies.
 
-Usernames contain 3–30 Unicode letters, decimal digits, or underscores; matching is case-insensitive and Unicode-normalized. Emails are unique ignoring case. Passwords contain 12–128 characters and are stored as Argon2id hashes. Failed logins are limited to five per username and 20 per client IP within 15 minutes, with a 15-minute cooldown. Limits are held in memory and reset when the server restarts; the server uses the direct connection address, not forwarded headers. Password reset and linking existing OAuth accounts are not implemented yet.
+Usernames contain 3–30 Unicode letters, decimal digits, or underscores; matching is case-insensitive and Unicode-normalized. Emails are unique ignoring case. Passwords contain 12–128 characters and are stored as Argon2id hashes. Failed logins are limited to five per username and 20 per client IP within 15 minutes, with a 15-minute cooldown. Limits are held in memory and reset when the server restarts; the server uses the direct connection address, not forwarded headers. Linking existing OAuth accounts is not implemented yet.
+
+## Reset a local password
+
+The Docker stack starts Mailpit as a local email inbox at `http://localhost:8025`. The backend sends reset emails to Mailpit instead of external email addresses. When running the backend outside Docker, run a local SMTP server on port 1025 or set `SMTP_HOST` and `SMTP_PORT`.
+
+Obtain a CSRF token from `GET /api/auth/csrf`, then send a JSON object containing `email` to `POST /api/auth/password-reset/request`. The endpoint returns `202` whether the address belongs to a password account or not; requests for the same address are limited to one per minute in memory. A failed mail delivery is logged without exposing the address or token. Open the Mailpit message and submit its `token` with a new `password` as JSON to `POST /api/auth/password-reset/confirm`, using the same CSRF procedure. The link expires after 30 minutes and only the latest link works. A successful reset revokes existing sessions and issues new access and refresh cookies. OAuth-only accounts cannot use this flow.
+
+`PASSWORD_RESET_BASE_URL` sets the frontend link destination and defaults to `http://localhost:3000/reset-password`. The reset UI is not implemented yet. `PASSWORD_RESET_FROM` changes the local sender address; `HYPERTUBE_MAILPIT_PORT` changes the host port for the Mailpit inbox.
 
 Handoff completion creates a `user_sessions` row, sets both credentials as HttpOnly cookies, and returns only user and expiry metadata:
 

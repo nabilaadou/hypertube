@@ -1,0 +1,10 @@
+ALTER TABLE users ALTER COLUMN provider DROP NOT NULL;
+ALTER TABLE users ALTER COLUMN provider_user_id DROP NOT NULL;
+ALTER TABLE users ADD COLUMN username varchar(120);
+ALTER TABLE users ADD COLUMN username_key varchar(256);
+ALTER TABLE users ADD COLUMN first_name varchar(128);
+ALTER TABLE users ADD COLUMN last_name varchar(128);
+ALTER TABLE users ADD COLUMN password_hash varchar(255);
+ALTER TABLE users ADD CONSTRAINT users_provider_identity_pair CHECK ((provider IS NULL) = (provider_user_id IS NULL));
+CREATE UNIQUE INDEX users_username_key_unique ON users (username_key);
+CREATE UNIQUE INDEX users_email_case_insensitive_unique ON users (lower(email));

@@ -113,6 +113,10 @@ Run `make up` again after changing `.env`. Use the same browser-facing hostname 
 
 ## Backend JWT authentication
 
+Local accounts can register with `POST /api/auth/register` using JSON fields `email`, `username`, `firstName`, `lastName`, and `password`. Log in with `POST /api/auth/login` using `username` and `password`. First obtain a CSRF cookie and header value from `GET /api/auth/csrf`, as for other state-changing endpoints. Registration immediately signs the user in; both endpoints return the existing user and expiry response and set the access and refresh cookies.
+
+Usernames contain 3–30 Unicode letters, decimal digits, or underscores; matching is case-insensitive and Unicode-normalized. Emails are unique ignoring case. Passwords contain 12–128 characters and are stored as Argon2id hashes. Failed logins are limited to five per username and 20 per client IP within 15 minutes, with a 15-minute cooldown. Limits are held in memory and reset when the server restarts; the server uses the direct connection address, not forwarded headers. Password reset and linking existing OAuth accounts are not implemented yet.
+
 Handoff completion creates a `user_sessions` row, sets both credentials as HttpOnly cookies, and returns only user and expiry metadata:
 
 ```json

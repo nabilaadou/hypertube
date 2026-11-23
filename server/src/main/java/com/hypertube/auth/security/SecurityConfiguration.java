@@ -66,7 +66,7 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health", "/api/auth/csrf").permitAll()
-                        .requestMatchers("/internal/auth/login-handoffs", "/api/auth/login-handoffs/complete",
+                        .requestMatchers("/internal/auth/login-handoffs", "/api/auth/login-handoffs/complete", "/api/auth/register", "/api/auth/login",
                                 "/api/auth/refresh", "/api/auth/logout").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling

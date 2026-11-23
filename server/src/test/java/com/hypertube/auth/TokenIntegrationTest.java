@@ -78,6 +78,46 @@ class TokenIntegrationTest {
     }
 
     @Test
+    void localRegistrationAndLoginReuseTheSessionFlow() throws Exception {
+        String body = """
+                {"username":"Éclair","email":"user@example.com","firstName":"First","lastName":"Last","password":"a-strong-password"}
+                """;
+        var registered = from(mvc.perform(withCsrf("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andReturn());
+        me(registered).andExpect(status().isOk());
+        String hash = jdbc.queryForObject("SELECT password_hash FROM users WHERE id = ?", String.class, registered.userId());
+        assertThat(hash).startsWith("$argon2id$").doesNotContain("a-strong-password");
+        var loggedIn = from(mvc.perform(withCsrf("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"e\\u0301CLAIR\",\"password\":\"a-strong-password\"}"))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(loggedIn.userId()).isEqualTo(registered.userId());
+        me(loggedIn).andExpect(status().isOk());
+        mvc.perform(withCsrf("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(body.replace("user@example.com", "other@example.com").replace("Éclair", "éCLAIR")))
+                .andExpect(status().isConflict());
+        mvc.perform(withCsrf("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(body.replace("user@example.com", "USER@example.com").replace("Éclair", "another")))
+                .andExpect(status().isConflict());
+        mvc.perform(withCsrf("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"éclair\",\"password\":\"wrong-password\"}"))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("invalid_credentials"));
+        mvc.perform(withCsrf("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"unknown\",\"password\":\"wrong-password\"}"))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("invalid_credentials"));
+        mvc.perform(withCsrf("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(body.replace("Éclair", "ab")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void localRegistrationRejectsExistingOauthEmail() throws Exception {
+        jdbc.update("INSERT INTO users (provider, provider_user_id, email) VALUES ('google', 'existing', 'oauth@example.com')");
+        mvc.perform(withCsrf("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content("""
+                {"username":"newuser","email":"OAUTH@example.com","firstName":"First","lastName":"Last","password":"a-strong-password"}
+                """)).andExpect(status().isConflict());
+    }
+
+    @Test
     void issuesHttpOnlyAccessAndOpaqueRefreshCookies() throws Exception {
         Credentials device = login();
         assertThat(jdbc.queryForObject("""

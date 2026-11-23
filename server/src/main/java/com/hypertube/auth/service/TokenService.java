@@ -45,6 +45,11 @@ public class TokenService {
     public AuthTokens completeLogin(UUID code, String proof) {
         UserProfile user = auth.finishLogin(code, proof)
                 .orElseThrow(() -> new AuthException("invalid_handoff", "The login handoff is invalid or expired", false));
+        return createSession(user);
+    }
+
+    @Transactional
+    public AuthTokens createSession(UserProfile user) {
         Instant now = clock.instant();
         String refreshToken = jwt.issueRefreshToken();
         UserSession session = sessions.save(new UserSession(user.id(), jwt.hash(refreshToken), now.plus(properties.refreshTtl())));

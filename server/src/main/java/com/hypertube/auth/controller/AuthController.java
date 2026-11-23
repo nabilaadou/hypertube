@@ -4,11 +4,15 @@ import java.util.UUID;
 import com.hypertube.auth.schema.AuthResponse;
 import com.hypertube.auth.schema.OAuthIdentity;
 import com.hypertube.auth.schema.UserProfile;
+import com.hypertube.auth.schema.LoginRequest;
+import com.hypertube.auth.schema.RegistrationRequest;
 import com.hypertube.auth.security.AuthCookies;
 import com.hypertube.auth.security.AuthTokens;
 import com.hypertube.auth.security.SessionPrincipal;
 import com.hypertube.auth.service.AuthService;
 import com.hypertube.auth.service.TokenService;
+import com.hypertube.auth.service.LocalAuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
@@ -30,11 +34,27 @@ class AuthController {
     private final AuthService auth;
     private final TokenService tokens;
     private final AuthCookies cookies;
+    private final LocalAuthService local;
 
-    AuthController(AuthService auth, TokenService tokens, AuthCookies cookies) {
+    AuthController(AuthService auth, TokenService tokens, AuthCookies cookies, LocalAuthService local) {
         this.auth = auth;
         this.tokens = tokens;
         this.cookies = cookies;
+        this.local = local;
+    }
+
+    @PostMapping("/api/auth/register")
+    ResponseEntity<AuthResponse> register(@Valid @RequestBody RegistrationRequest request) {
+        return localSignedIn(local.register(request));
+    }
+
+    @PostMapping("/api/auth/login")
+    ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
+        return localSignedIn(local.login(request, servletRequest.getRemoteAddr()));
+    }
+
+    private ResponseEntity<AuthResponse> localSignedIn(AuthTokens result) {
+        return signedIn(result).body(new AuthResponse(result.accessMaxAge().toSeconds(), result.accessExpiresAt(), result.user()));
     }
 
     @PostMapping("/internal/auth/login-handoffs")

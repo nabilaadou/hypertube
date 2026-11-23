@@ -13,6 +13,7 @@ import com.hypertube.auth.security.SecurityConfiguration;
 import com.hypertube.auth.security.SessionPrincipal;
 import com.hypertube.auth.service.AuthService;
 import com.hypertube.auth.service.TokenService;
+import com.hypertube.auth.service.LocalAuthService;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,26 @@ class AuthControllerTest {
     @Autowired private MockMvc mvc;
     @MockitoBean private AuthService auth;
     @MockitoBean private TokenService tokens;
+    @MockitoBean private LocalAuthService local;
+
+    @Test
+    void localEndpointsRequireCsrfAndIssueSessionCookies() throws Exception {
+        String registration = """
+                {"username":"Sultan","email":"sultan@example.com","firstName":"Test","lastName":"User","password":"a-strong-password"}
+                """;
+        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(registration))
+                .andExpect(status().isForbidden());
+        when(local.register(any())).thenReturn(TOKENS);
+        mvc.perform(withCsrf("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(registration))
+                .andExpect(status().isOk()).andExpect(cookie().httpOnly(AuthCookies.ACCESS, true))
+                .andExpect(cookie().httpOnly(AuthCookies.REFRESH, true)).andExpect(jsonPath("$.accessToken").doesNotExist());
+        when(local.login(any(), any())).thenReturn(TOKENS);
+        mvc.perform(withCsrf("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"Sultan\",\"password\":\"a-strong-password\"}"))
+                .andExpect(status().isOk()).andExpect(cookie().exists(AuthCookies.ACCESS));
+        mvc.perform(withCsrf("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+    }
 
     @Test
     void createsAuthorizedHandoff() throws Exception {

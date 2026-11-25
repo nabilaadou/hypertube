@@ -233,6 +233,167 @@ class TokenIntegrationTest {
     }
 
     @Test
+    void newUserCompletesProfileBeforeReceivingSession() throws Exception {
+        String code = rawHandoff("google", "new-oauth", null);
+        mvc.perform(complete(code)).andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("profile_required"))
+                .andExpect(jsonPath("$.expiresAt").value(START.plus(Duration.ofMinutes(15)).toString()))
+                .andExpect(cookie().maxAge("hypertube_login_proof", 900))
+                .andExpect(cookie().path("hypertube_login_proof", "/api/auth/login-handoffs"))
+                .andExpect(cookie().doesNotExist(AuthCookies.ACCESS));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users", Integer.class)).isZero();
+        mvc.perform(post("/api/auth/login-handoffs/profile").param("code", code)
+                .cookie(new Cookie("hypertube_login_proof", PROOF)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(withCsrf("/api/auth/login-handoffs/profile").param("code", code)
+                .cookie(new Cookie("hypertube_login_proof", "b".repeat(64))).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"newuser\",\"email\":\"new@example.com\",\"firstName\":\"New\",\"lastName\":\"User\"}"))
+                .andExpect(status().isUnauthorized());
+        var user = from(mvc.perform(profile(code, "newuser", "new@example.com")).andExpect(status().isOk()).andReturn());
+        me(user).andExpect(status().isOk());
+        mvc.perform(profile(code, "newuser", "new@example.com")).andExpect(status().isUnauthorized());
+        assertThat(jdbc.queryForObject("SELECT password_hash FROM users WHERE id = ?", String.class, user.userId())).isNull();
+    }
+
+    @Test
+    void existingOAuthUserWithIncompleteProfileMustCompleteIt() throws Exception {
+        jdbc.update("INSERT INTO users (provider, provider_user_id, display_name) VALUES ('42', 'incomplete', 'Old Name')");
+        String code = rawHandoff("42", "incomplete", null);
+        mvc.perform(complete(code)).andExpect(status().isAccepted()).andExpect(jsonPath("$.status").value("profile_required"));
+        var user = from(mvc.perform(profile(code, "completeuser", "complete@example.com")).andExpect(status().isOk()).andReturn());
+        assertThat(jdbc.queryForObject("SELECT display_name FROM users WHERE id = ?", String.class, user.userId())).isEqualTo("Old Name");
+    }
+
+    @Test
+    void matchingPasswordAccountRequiresProofAndPreservesProfile() throws Exception {
+        var account = localRegistration("link_user", "link@example.com");
+        String code = rawHandoff("google", "matching-provider", "LINK@example.com");
+        mvc.perform(complete(code)).andExpect(status().isAccepted()).andExpect(jsonPath("$.status").value("link_required"))
+                .andExpect(cookie().maxAge("hypertube_login_proof", 120)).andExpect(cookie().doesNotExist(AuthCookies.ACCESS));
+        localRegistration("other_user", "other-user@example.com");
+        mvc.perform(link(code, "other_user", "a-strong-password")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/auth/login-handoffs/link").param("code", code)
+                .cookie(new Cookie("hypertube_login_proof", PROOF)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"link_user\",\"password\":\"a-strong-password\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(link(code, "link_user", "wrong-password")).andExpect(status().isUnauthorized());
+        var linked = from(mvc.perform(link(code, "link_user", "a-strong-password")).andExpect(status().isOk()).andReturn());
+        assertThat(linked.userId()).isEqualTo(account.userId());
+        mvc.perform(link(code, "link_user", "a-strong-password")).andExpect(status().isUnauthorized());
+        String next = rawHandoff("google", "matching-provider", "changed@example.com");
+        from(mvc.perform(complete(next)).andExpect(status().isOk()).andReturn());
+        assertThat(jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, account.userId())).isEqualTo("link@example.com");
+        assertThat(jdbc.queryForObject("SELECT first_name FROM users WHERE id = ?", String.class, account.userId())).isEqualTo("First");
+        String other = rawHandoff("42", "other-provider", "link@example.com");
+        mvc.perform(complete(other)).andExpect(status().isConflict());
+    }
+
+    @Test
+    void profileEmailMatchingPasswordAccountRequiresVerification() throws Exception {
+        var account = localRegistration("profile_link", "profile-link@example.com");
+        String code = rawHandoff("42", "profile-provider", null);
+        mvc.perform(complete(code)).andExpect(status().isAccepted());
+        mvc.perform(profile(code, "ignoredname", "profile-link@example.com")).andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("link_required"));
+        var linked = from(mvc.perform(link(code, "profile_link", "a-strong-password")).andExpect(status().isOk()).andReturn());
+        assertThat(linked.userId()).isEqualTo(account.userId());
+    }
+
+    @Test
+    void deadlinesAndOauthOnlyEmailConflictsAreEnforced() throws Exception {
+        String initial = rawHandoff("google", "expired-initial", null);
+        clock.advance(Duration.ofMinutes(2));
+        mvc.perform(complete(initial)).andExpect(status().isUnauthorized());
+        String pending = rawHandoff("google", "expired-profile", null);
+        mvc.perform(complete(pending)).andExpect(status().isAccepted());
+        clock.advance(Duration.ofMinutes(15));
+        mvc.perform(profile(pending, "expired_profile", "expired@example.com")).andExpect(status().isUnauthorized());
+        localRegistration("expiry_user", "expiry@example.com");
+        String linking = rawHandoff("google", "expired-link", "expiry@example.com");
+        mvc.perform(complete(linking)).andExpect(status().isAccepted());
+        clock.advance(Duration.ofMinutes(2));
+        mvc.perform(link(linking, "expiry_user", "a-strong-password")).andExpect(status().isUnauthorized());
+        jdbc.update("INSERT INTO users (provider, provider_user_id, email) VALUES ('google', 'existing-oauth', 'taken@example.com')");
+        String conflict = rawHandoff("42", "conflict-provider", "taken@example.com");
+        mvc.perform(complete(conflict)).andExpect(status().isConflict());
+    }
+
+    @Test
+    void repeatedWrongLinkPasswordsUseExistingLoginRateLimit() throws Exception {
+        localRegistration("rate_link", "rate-link@example.com");
+        String code = rawHandoff("google", "rate-provider", "rate-link@example.com");
+        mvc.perform(complete(code)).andExpect(status().isAccepted());
+        for (int i = 0; i < 5; i++) mvc.perform(link(code, "rate_link", "wrong-password")).andExpect(status().isUnauthorized());
+        mvc.perform(link(code, "rate_link", "a-strong-password")).andExpect(status().isTooManyRequests());
+        assertThat(jdbc.queryForObject("SELECT provider FROM users WHERE username_key = 'rate_link'", String.class)).isNull();
+    }
+
+    @Test
+    void concurrentUseOfOneLinkHandoffCreatesOneSession() throws Exception {
+        localRegistration("single_link", "single-link@example.com");
+        String code = rawHandoff("google", "single-provider", "single-link@example.com");
+        mvc.perform(complete(code)).andExpect(status().isAccepted());
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            java.util.concurrent.Callable<Integer> request = () -> {
+                assertThat(start.await(10, TimeUnit.SECONDS)).isTrue();
+                return mvc.perform(link(code, "single_link", "a-strong-password")).andReturn().getResponse().getStatus();
+            };
+            var first = executor.submit(request);
+            var second = executor.submit(request);
+            start.countDown();
+            assertThat(List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS)).stream().sorted().toList())
+                    .containsExactly(200, 401);
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_sessions", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    void concurrentLinkAttemptsDoNotAttachTwoProviders() throws Exception {
+        localRegistration("concurrent_link", "concurrent-link@example.com");
+        String firstCode = rawHandoff("google", "race-google", "concurrent-link@example.com");
+        String secondCode = rawHandoff("42", "race-42", "concurrent-link@example.com");
+        mvc.perform(complete(firstCode)).andExpect(status().isAccepted());
+        mvc.perform(complete(secondCode)).andExpect(status().isAccepted());
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            java.util.concurrent.Callable<Integer> first = () -> {
+                assertThat(start.await(10, TimeUnit.SECONDS)).isTrue();
+                return mvc.perform(link(firstCode, "concurrent_link", "a-strong-password")).andReturn().getResponse().getStatus();
+            };
+            java.util.concurrent.Callable<Integer> second = () -> {
+                assertThat(start.await(10, TimeUnit.SECONDS)).isTrue();
+                return mvc.perform(link(secondCode, "concurrent_link", "a-strong-password")).andReturn().getResponse().getStatus();
+            };
+            var left = executor.submit(first);
+            var right = executor.submit(second);
+            start.countDown();
+            assertThat(List.of(left.get(15, TimeUnit.SECONDS), right.get(15, TimeUnit.SECONDS)).stream().sorted().toList())
+                    .containsExactly(200, 409);
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_sessions", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    void concurrentProfileCompletionsCreateOnlyOneSession() throws Exception {
+        String code = rawHandoff("google", "profile-race", null);
+        mvc.perform(complete(code)).andExpect(status().isAccepted());
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            java.util.concurrent.Callable<Integer> request = () -> {
+                assertThat(start.await(10, TimeUnit.SECONDS)).isTrue();
+                return mvc.perform(profile(code, "race_user", "race@example.com")).andReturn().getResponse().getStatus();
+            };
+            var first = executor.submit(request);
+            var second = executor.submit(request);
+            start.countDown();
+            assertThat(List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS)).stream().sorted().toList())
+                    .containsExactly(200, 401);
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_sessions", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
     void issuesHttpOnlyAccessAndOpaqueRefreshCookies() throws Exception {
         Credentials device = login();
         assertThat(jdbc.queryForObject("""
@@ -430,15 +591,16 @@ class TokenIntegrationTest {
     }
 
     @Test
-    void failedSessionInsertRollsBackHandoffAndUserUpsert() throws Exception {
-        String code = createHandoff("session-test");
+    void failedSessionInsertRollsBackHandoffAndUserCreation() throws Exception {
+        String code = rawHandoff("google", "rollback-test", null);
+        mvc.perform(complete(code)).andExpect(status().isAccepted());
         jdbc.execute("ALTER TABLE user_sessions ADD CONSTRAINT reject_test_session CHECK (false) NOT VALID");
-        try { assertThrows(ServletException.class, () -> mvc.perform(complete(code))); }
+        try { assertThrows(ServletException.class, () -> mvc.perform(profile(code, "rollback_user", "rollback@example.com"))); }
         finally { jdbc.execute("ALTER TABLE user_sessions DROP CONSTRAINT reject_test_session"); }
         assertThat(jdbc.queryForObject("SELECT count(*) FROM oauth_login_handoffs", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users", Integer.class)).isZero();
-        mvc.perform(complete(code)).andExpect(status().isOk());
-        mvc.perform(complete(code)).andExpect(status().isUnauthorized());
+        mvc.perform(profile(code, "rollback_user", "rollback@example.com")).andExpect(status().isOk());
+        mvc.perform(profile(code, "rollback_user", "rollback@example.com")).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -469,11 +631,34 @@ class TokenIntegrationTest {
         return from(mvc.perform(complete(createHandoff("session-test"))).andExpect(status().isOk()).andReturn());
     }
     private String createHandoff(String account) throws Exception {
+        jdbc.update("""
+                INSERT INTO users (provider, provider_user_id, username, username_key, first_name, last_name, email)
+                VALUES ('google', ?, 'session_test', 'session_test', 'Session', 'Test', 'session-test@example.com')
+                ON CONFLICT (provider, provider_user_id) DO NOTHING
+                """, account);
+        return rawHandoff("google", account, null);
+    }
+    private String rawHandoff(String provider, String account, String email) throws Exception {
+        String json = email == null ? "null" : "\"" + email + "\"";
         return mvc.perform(post("/internal/auth/login-handoffs").header("Authorization", "Bearer " + SECRET)
                 .contentType(MediaType.APPLICATION_JSON).content("""
-                        {"provider":"google","providerUserId":"%s","displayName":"Test User","proofHash":"%s"}
-                        """.formatted(account, jwt.hash(PROOF))))
+                        {"provider":"%s","providerUserId":"%s","displayName":"Test User","email":%s,"proofHash":"%s"}
+                        """.formatted(provider, account, json, jwt.hash(PROOF))))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    }
+    private MockHttpServletRequestBuilder profile(String code, String username, String email) throws Exception {
+        return withCsrf("/api/auth/login-handoffs/profile").param("code", code)
+                .cookie(new Cookie("hypertube_login_proof", PROOF)).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"username":"%s","email":"%s","firstName":"First","lastName":"Last"}
+                        """.formatted(username, email));
+    }
+    private MockHttpServletRequestBuilder link(String code, String username, String password) throws Exception {
+        return withCsrf("/api/auth/login-handoffs/link").param("code", code)
+                .cookie(new Cookie("hypertube_login_proof", PROOF)).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"username":"%s","password":"%s"}
+                        """.formatted(username, password));
     }
     private MockHttpServletRequestBuilder complete(String code) {
         return post("/api/auth/login-handoffs/complete").param("code", code).cookie(new Cookie("hypertube_login_proof", PROOF));

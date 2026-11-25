@@ -32,11 +32,7 @@ public class LocalAuthService {
 
     @Transactional
     public AuthTokens register(RegistrationRequest request) {
-        String username = Normalizer.normalize(request.username(), Normalizer.Form.NFC);
-        int length = username.codePointCount(0, username.length());
-        if (length < 3 || length > 30 || !username.matches("[\\p{L}\\p{Nd}_]+")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username must contain 3 to 30 letters, digits or underscores.");
-        }
+        String username = validUsername(request.username());
         String email = request.email().strip();
         var ids = jdbc.query("""
                 INSERT INTO users (username, username_key, first_name, last_name, email, password_hash, display_name)
@@ -49,6 +45,11 @@ public class LocalAuthService {
 
     @Transactional
     public AuthTokens login(LoginRequest request, String address) {
+        return tokens.createSession(verify(request, address, null));
+    }
+
+    @Transactional
+    public com.hypertube.auth.schema.UserProfile verify(LoginRequest request, String address, Long expectedUserId) {
         String key = usernameKey(request.username());
         var matches = jdbc.query("SELECT id, password_hash FROM users WHERE username_key = ? FOR UPDATE",
                 (row, i) -> new Credential(row.getLong("id"), row.getString("password_hash")), key);
@@ -56,10 +57,20 @@ public class LocalAuthService {
         boolean valid = limiter.authenticate(key, address, () -> {
             String hash = credential == null || credential.hash() == null ? dummyHash : credential.hash();
             boolean matched = passwords.matches(request.password(), hash);
-            return credential != null && credential.hash() != null && matched;
+            return credential != null && credential.hash() != null && matched
+                    && (expectedUserId == null || expectedUserId.equals(credential.id()));
         });
         if (!valid) throw new AuthException("invalid_credentials", "Invalid username or password.", false);
-        return tokens.createSession(users.findProfileById(credential.id()).orElseThrow());
+        return users.findProfileById(credential.id()).orElseThrow();
+    }
+
+    static String validUsername(String value) {
+        String username = Normalizer.normalize(value, Normalizer.Form.NFC);
+        int length = username.codePointCount(0, username.length());
+        if (length < 3 || length > 30 || !username.matches("[\\p{L}\\p{Nd}_]+")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username must contain 3 to 30 letters, digits or underscores.");
+        }
+        return username;
     }
 
     static String usernameKey(String username) {

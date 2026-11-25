@@ -6,6 +6,7 @@ require "securerandom"
 
 class AuthServer < Sinatra::Base
   LOGIN_COMPLETE_PATH = "/api/auth/login-handoffs/complete".freeze
+  LOGIN_PROOF_PATH = "/api/auth/login-handoffs".freeze
   LOGIN_CODE_FORMAT = /\A[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\z/
 
   set :show_exceptions, false
@@ -66,7 +67,7 @@ class AuthServer < Sinatra::Base
     }
     login_code = create_login_handoff(identity.transform_values { |value| value.empty? ? nil : value })
 
-    response.set_cookie("hypertube_login_proof", value: browser_proof, path: LOGIN_COMPLETE_PATH,
+    response.set_cookie("hypertube_login_proof", value: browser_proof, path: LOGIN_PROOF_PATH,
                         max_age: 120, httponly: true, same_site: :lax,
                         secure: settings.spring_public_url.scheme == "https")
     JSON.generate(code: login_code, completionUrl: "#{settings.spring_public_url.origin}#{LOGIN_COMPLETE_PATH}")

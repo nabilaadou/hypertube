@@ -15,6 +15,7 @@ import com.hypertube.auth.service.AuthService;
 import com.hypertube.auth.service.TokenService;
 import com.hypertube.auth.service.LocalAuthService;
 import com.hypertube.auth.service.PasswordResetService;
+import com.hypertube.auth.service.OAuthFlowService;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -50,6 +51,7 @@ class AuthControllerTest {
     @MockitoBean private TokenService tokens;
     @MockitoBean private LocalAuthService local;
     @MockitoBean private PasswordResetService passwordReset;
+    @MockitoBean private OAuthFlowService oauth;
 
     @Test
     void localEndpointsRequireCsrfAndIssueSessionCookies() throws Exception {
@@ -89,7 +91,7 @@ class AuthControllerTest {
 
     @Test
     void issuesHttpOnlyCredentialsWithoutReturningTokensInJson() throws Exception {
-        when(tokens.completeLogin(CODE, PROOF)).thenReturn(TOKENS);
+        when(oauth.begin(CODE, PROOF)).thenReturn(new OAuthFlowService.Outcome(OAuthFlowService.Status.AUTHENTICATED, null, TOKENS));
         var result = mvc.perform(post("/api/auth/login-handoffs/complete").param("code", CODE.toString())
                         .cookie(new Cookie("hypertube_login_proof", PROOF)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").doesNotExist())
@@ -110,7 +112,7 @@ class AuthControllerTest {
 
     @Test
     void centralizedHandoffFailureDoesNotClearExistingRefresh() throws Exception {
-        when(tokens.completeLogin(CODE, PROOF))
+        when(oauth.begin(CODE, PROOF))
                 .thenThrow(new AuthException("invalid_handoff", "Invalid handoff", false));
         mvc.perform(post("/api/auth/login-handoffs/complete").param("code", CODE.toString())
                         .cookie(new Cookie("hypertube_login_proof", PROOF)))

@@ -10,7 +10,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -37,13 +36,13 @@ public class LoginHandoff {
     @Column(length = 254)
     private String email;
 
-    @Generated
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
     protected LoginHandoff() {}
 
-    public LoginHandoff(OAuthIdentity identity) {
+    public LoginHandoff(OAuthIdentity identity, Instant expiresAt) {
+        this.expiresAt = expiresAt;
         this.proofHash = identity.proofHash();
         this.provider = identity.provider();
         this.providerUserId = identity.providerUserId();

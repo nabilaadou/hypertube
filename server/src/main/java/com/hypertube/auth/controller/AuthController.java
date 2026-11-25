@@ -3,6 +3,7 @@ package com.hypertube.auth.controller;
 import java.util.UUID;
 import com.hypertube.auth.schema.AuthResponse;
 import com.hypertube.auth.schema.OAuthIdentity;
+import com.hypertube.auth.schema.OAuthProfileRequest;
 import com.hypertube.auth.schema.UserProfile;
 import com.hypertube.auth.schema.LoginRequest;
 import com.hypertube.auth.schema.RegistrationRequest;
@@ -15,6 +16,7 @@ import com.hypertube.auth.service.AuthService;
 import com.hypertube.auth.service.TokenService;
 import com.hypertube.auth.service.LocalAuthService;
 import com.hypertube.auth.service.PasswordResetService;
+import com.hypertube.auth.service.OAuthFlowService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
@@ -39,13 +41,15 @@ class AuthController {
     private final AuthCookies cookies;
     private final LocalAuthService local;
     private final PasswordResetService passwordReset;
+    private final OAuthFlowService oauth;
 
-    AuthController(AuthService auth, TokenService tokens, AuthCookies cookies, LocalAuthService local, PasswordResetService passwordReset) {
+    AuthController(AuthService auth, TokenService tokens, AuthCookies cookies, LocalAuthService local, PasswordResetService passwordReset, OAuthFlowService oauth) {
         this.auth = auth;
         this.tokens = tokens;
         this.cookies = cookies;
         this.local = local;
         this.passwordReset = passwordReset;
+        this.oauth = oauth;
     }
 
     @PostMapping("/api/auth/password-reset/request")
@@ -83,12 +87,39 @@ class AuthController {
     }
 
     @PostMapping("/api/auth/login-handoffs/complete")
-    ResponseEntity<AuthResponse> completeHandoff(@RequestParam UUID code,
+    ResponseEntity<?> completeHandoff(@RequestParam UUID code,
             @CookieValue(value = "hypertube_login_proof", defaultValue = "") String proof) {
-        AuthTokens result = tokens.completeLogin(code, proof);
-        return signedIn(result).header(HttpHeaders.SET_COOKIE, cookies.clearLoginProof())
-                .body(new AuthResponse(result.accessMaxAge().toSeconds(), result.accessExpiresAt(), result.user()));
+        return oauthResponse(oauth.begin(code, proof), proof);
     }
+
+    @PostMapping("/api/auth/login-handoffs/profile")
+    ResponseEntity<?> completeOAuthProfile(@RequestParam UUID code,
+            @CookieValue(value = "hypertube_login_proof", defaultValue = "") String proof,
+            @Valid @RequestBody OAuthProfileRequest request) {
+        return oauthResponse(oauth.profile(code, proof, request), proof);
+    }
+
+    @PostMapping("/api/auth/login-handoffs/link")
+    ResponseEntity<?> linkOAuthAccount(@RequestParam UUID code,
+            @CookieValue(value = "hypertube_login_proof", defaultValue = "") String proof,
+            @Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
+        return oauthResponse(oauth.link(code, proof, request, servletRequest.getRemoteAddr()), proof);
+    }
+
+    private ResponseEntity<?> oauthResponse(OAuthFlowService.Outcome result, String proof) {
+        if (result.status() == OAuthFlowService.Status.AUTHENTICATED) {
+            var session = result.tokens();
+            return signedIn(session).header(HttpHeaders.SET_COOKIE, cookies.clearLoginProof())
+                    .body(new AuthResponse(session.accessMaxAge().toSeconds(), session.accessExpiresAt(), session.user()));
+        }
+        long seconds = result.status() == OAuthFlowService.Status.PROFILE_REQUIRED ? 900 : 120;
+        return ResponseEntity.accepted().cacheControl(CacheControl.noStore())
+                .header("Referrer-Policy", "no-referrer")
+                .header(HttpHeaders.SET_COOKIE, cookies.loginProof(proof, java.time.Duration.ofSeconds(seconds)))
+                .body(new PendingOAuth(result.status().name().toLowerCase(java.util.Locale.ROOT), result.expiresAt()));
+    }
+
+    private record PendingOAuth(String status, java.time.Instant expiresAt) {}
 
     @PostMapping("/api/auth/refresh")
     ResponseEntity<AuthResponse> refresh(@CookieValue(value = AuthCookies.REFRESH, defaultValue = "") String refreshToken) {

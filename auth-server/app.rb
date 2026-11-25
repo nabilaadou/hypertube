@@ -67,6 +67,7 @@ class AuthServer < Sinatra::Base
     }
     login_code = create_login_handoff(identity.transform_values { |value| value.empty? ? nil : value })
 
+    response.delete_cookie("hypertube_login_proof", path: LOGIN_COMPLETE_PATH)
     response.set_cookie("hypertube_login_proof", value: browser_proof, path: LOGIN_PROOF_PATH,
                         max_age: 120, httponly: true, same_site: :lax,
                         secure: settings.spring_public_url.scheme == "https")

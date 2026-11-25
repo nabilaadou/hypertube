@@ -285,7 +285,8 @@ class TokenIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, account.userId())).isEqualTo("link@example.com");
         assertThat(jdbc.queryForObject("SELECT first_name FROM users WHERE id = ?", String.class, account.userId())).isEqualTo("First");
         String other = rawHandoff("42", "other-provider", "link@example.com");
-        mvc.perform(complete(other)).andExpect(status().isConflict());
+        mvc.perform(complete(other)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Sign in with your original provider or password."));
     }
 
     @Test
@@ -315,7 +316,8 @@ class TokenIntegrationTest {
         mvc.perform(link(linking, "expiry_user", "a-strong-password")).andExpect(status().isUnauthorized());
         jdbc.update("INSERT INTO users (provider, provider_user_id, email) VALUES ('google', 'existing-oauth', 'taken@example.com')");
         String conflict = rawHandoff("42", "conflict-provider", "taken@example.com");
-        mvc.perform(complete(conflict)).andExpect(status().isConflict());
+        mvc.perform(complete(conflict)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Sign in with your original provider or password."));
     }
 
     @Test

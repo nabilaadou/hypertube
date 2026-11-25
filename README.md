@@ -172,6 +172,12 @@ From the repository root, run the API smoke test and check the frontend.
 (cd client && npm ci && npm run lint && npm run build)
 ```
 
+With Ruby and Bundler installed, run the OAuth callback cookie test:
+
+```sh
+(cd auth-server && bundle install && bundle exec ruby test/proof_cookie_test.rb)
+```
+
 The JWT and refresh integration tests run when `TEST_DATABASE_URL` is set. They reset the users, handoffs, and revocation tables between cases and use a controllable clock for expiry tests. Start a disposable PostgreSQL database:
 
 ```sh

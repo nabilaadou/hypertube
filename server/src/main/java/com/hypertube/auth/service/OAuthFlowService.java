@@ -104,7 +104,10 @@ public class OAuthFlowService {
     }
 
     private Outcome linkOrReject(Handoff handoff, Account account, String email) {
-        if (account.passwordHash() == null || account.provider() != null) throw conflict();
+        if (account.passwordHash() == null || account.provider() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Sign in with your original provider or password.");
+        }
         return pending(handoff, Status.LINK_REQUIRED, account.id(), 120, email);
     }
 

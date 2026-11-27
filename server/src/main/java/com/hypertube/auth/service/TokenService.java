@@ -21,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TokenService {
-    private final AuthService auth;
     private final UserSessionRepository sessions;
     private final RevokedSessionRepository revocations;
     private final UserRepository users;
@@ -29,10 +28,9 @@ public class TokenService {
     private final JwtService jwt;
     private final Clock clock;
 
-    public TokenService(AuthService auth, UserSessionRepository sessions,
+    public TokenService(UserSessionRepository sessions,
                         RevokedSessionRepository revocations, UserRepository users,
                         AuthProperties properties, JwtService jwt, Clock clock) {
-        this.auth = auth;
         this.sessions = sessions;
         this.revocations = revocations;
         this.users = users;
@@ -42,9 +40,7 @@ public class TokenService {
     }
 
     @Transactional
-    public AuthTokens completeLogin(UUID code, String proof) {
-        UserProfile user = auth.finishLogin(code, proof)
-                .orElseThrow(() -> new AuthException("invalid_handoff", "The login handoff is invalid or expired", false));
+    public AuthTokens createSession(UserProfile user) {
         Instant now = clock.instant();
         String refreshToken = jwt.issueRefreshToken();
         UserSession session = sessions.save(new UserSession(user.id(), jwt.hash(refreshToken), now.plus(properties.refreshTtl())));

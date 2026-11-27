@@ -3,30 +3,24 @@ package com.hypertube.auth.service;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 import com.hypertube.auth.model.LoginHandoff;
 import com.hypertube.auth.repository.LoginHandoffRepository;
-import com.hypertube.auth.repository.UserRepository;
 import com.hypertube.auth.schema.OAuthIdentity;
-import com.hypertube.auth.schema.UserProfile;
 import com.hypertube.auth.security.AuthProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthService {
-    private static final Pattern PROOF = Pattern.compile("[0-9a-f]{64}");
     private final LoginHandoffRepository handoffs;
-    private final UserRepository users;
+    private final java.time.Clock clock;
     private final byte[] handoffAuthorization;
 
-    AuthService(LoginHandoffRepository handoffs, UserRepository users, AuthProperties properties) {
+    AuthService(LoginHandoffRepository handoffs, java.time.Clock clock, AuthProperties properties) {
         this.handoffs = handoffs;
-        this.users = users;
+        this.clock = clock;
         String secret = properties.handoffSecret();
         this.handoffAuthorization = secret != null && secret.length() >= 64 ? digest("Bearer " + secret) : null;
     }
@@ -37,17 +31,9 @@ public class AuthService {
 
     @Transactional
     public UUID startLogin(OAuthIdentity identity) {
-        handoffs.deleteExpired();
-        return handoffs.save(new LoginHandoff(identity)).getCode();
-    }
-
-    @Transactional
-    public Optional<UserProfile> finishLogin(UUID code, String proof) {
-        if (!PROOF.matcher(proof).matches()) {
-            return Optional.empty();
-        }
-        return handoffs.redeem(code, HexFormat.of().formatHex(digest(proof)))
-                .flatMap(users::findProfileById);
+        var now = clock.instant();
+        handoffs.deleteExpired(now);
+        return handoffs.save(new LoginHandoff(identity, now.plusSeconds(120))).getCode();
     }
 
     private static byte[] digest(String value) {

@@ -5,6 +5,7 @@ import com.hypertube.auth.repository.RevokedSessionRepository;
 import com.hypertube.auth.repository.UserSessionRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -14,11 +15,13 @@ public class SessionCleanupService {
     private final UserSessionRepository sessions;
     private final RevokedSessionRepository revocations;
     private final Clock clock;
+    private final JdbcTemplate jdbc;
 
-    public SessionCleanupService(UserSessionRepository sessions, RevokedSessionRepository revocations, Clock clock) {
+    public SessionCleanupService(UserSessionRepository sessions, RevokedSessionRepository revocations, Clock clock, JdbcTemplate jdbc) {
         this.sessions = sessions;
         this.revocations = revocations;
         this.clock = clock;
+        this.jdbc = jdbc;
     }
 
     @Scheduled(fixedDelayString = CLEANUP_INTERVAL, initialDelayString = CLEANUP_INTERVAL)
@@ -27,5 +30,6 @@ public class SessionCleanupService {
         var now = clock.instant();
         sessions.deleteExpiredAndRevoked(now);
         revocations.deleteExpired(now);
+        jdbc.update("DELETE FROM password_reset_tokens WHERE expires_at <= ?", java.sql.Timestamp.from(now));
     }
 }

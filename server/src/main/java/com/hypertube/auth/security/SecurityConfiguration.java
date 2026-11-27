@@ -62,11 +62,11 @@ public class SecurityConfiguration {
                 .logout(AbstractHttpConfigurer::disable)
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokens).csrfTokenRequestHandler(headerOnlyCsrf)
                         // These handoffs use the internal shared secret and browser proof, respectively.
-                        .ignoringRequestMatchers("/internal/auth/login-handoffs", "/api/auth/login-handoffs/complete"))
+                        .ignoringRequestMatchers("/internal/auth/login-handoffs", "/internal/auth/reauth/callback", "/api/auth/login-handoffs/complete"))
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health", "/api/auth/csrf").permitAll()
-                        .requestMatchers("/internal/auth/login-handoffs", "/api/auth/login-handoffs/complete",
+                        .requestMatchers("/internal/auth/login-handoffs", "/internal/auth/reauth/callback", "/api/auth/login-handoffs/complete", "/api/auth/register", "/api/auth/login", "/api/auth/password-reset/request", "/api/auth/password-reset/confirm", "/api/auth/email-change/confirm", "/api/auth/login-handoffs/profile", "/api/auth/login-handoffs/link",
                                 "/api/auth/refresh", "/api/auth/logout").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling

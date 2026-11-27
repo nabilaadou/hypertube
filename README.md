@@ -107,11 +107,23 @@ Register the redirect URIs with your 42 application and Google **Web application
 make up
 ```
 
-The auth service returns JSON and provider redirects. In the same browser session, request `GET /auth/providers`, then post its `csrfToken` as the form field `authenticity_token` to `/auth/marvin` or `/auth/google_oauth2`. This redirects the browser to the provider. On success the callback sets the HttpOnly browser proof cookie and returns `code` and `completionUrl`. Within two minutes, post the `code` as a form field to that URL with the browser proof cookie. Spring saves or updates the user in PostgreSQL, issues the HttpOnly access and refresh cookies, and returns the user profile and token expiry as JSON. Repeat sign-ins with the same provider account reuse the database ID.
+The auth service returns JSON and provider redirects. In the same browser session, request `GET /auth/providers`, then post its `csrfToken` as the form field `authenticity_token` to `/auth/marvin` or `/auth/google_oauth2`. This redirects the browser to the provider. On success the callback sets the HttpOnly browser proof cookie and returns `code` and `completionUrl`. Within two minutes, post the `code` as a form field to that URL with the browser proof cookie. An existing provider account with a complete profile receives the session response immediately. Otherwise, HTTP 202 returns `status` and `expiresAt`, without issuing a session. The proof cookie must accompany each follow-up request. For `profile_required`, post `username`, `email`, `firstName` and `lastName` as JSON to `/api/auth/login-handoffs/profile?code=<code>` within 15 minutes. For `link_required`, post `username` and `password` to `/api/auth/login-handoffs/link?code=<code>` within two minutes. Both follow-up endpoints also require the CSRF cookie and header described below. Submitting a profile whose email belongs to a password account transitions to `link_required`. Successful profile completion or linking returns the normal session response. Each account supports at most one provider, and repeat provider sign-ins do not overwrite profile fields.
 
 Run `make up` again after changing `.env`. Use the same browser-facing hostname and scheme in `AUTH_BASE_URL` and `SPRING_PUBLIC_URL` so the browser can carry the login cookie to Spring Boot.
 
 ## Backend JWT authentication
+
+Local accounts can register with `POST /api/auth/register` using JSON fields `email`, `username`, `firstName`, `lastName`, and `password`. Log in with `POST /api/auth/login` using `username` and `password`. First obtain a CSRF cookie and header value from `GET /api/auth/csrf`, as for other state-changing endpoints. Registration immediately signs the user in; both endpoints return the existing user and expiry response and set the access and refresh cookies.
+
+Usernames contain 3–30 Unicode letters, decimal digits, or underscores; matching is case-insensitive and Unicode-normalized. Emails are unique ignoring case. Passwords contain 12–128 characters and are stored as Argon2id hashes. Failed logins are limited to five per username and 20 per client IP within 15 minutes, with a 15-minute cooldown. Limits are held in memory and reset when the server restarts; the server uses the direct connection address, not forwarded headers.
+
+## Reset a local password
+
+The Docker stack starts Mailpit as a local email inbox at `http://localhost:8025`. The backend sends reset emails to Mailpit instead of external email addresses. When running the backend outside Docker, run a local SMTP server on port 1025 or set `SMTP_HOST` and `SMTP_PORT`.
+
+Obtain a CSRF token from `GET /api/auth/csrf`, then send a JSON object containing `email` to `POST /api/auth/password-reset/request`. The endpoint returns `202` whether the address belongs to a password account or not; requests for the same address are limited to one per minute in memory. A failed mail delivery is logged without exposing the address or token. Open the Mailpit message and submit its `token` with a new `password` as JSON to `POST /api/auth/password-reset/confirm`, using the same CSRF procedure. The link expires after 30 minutes and only the latest link works. A successful reset revokes existing sessions and issues new access and refresh cookies. OAuth-only accounts cannot use this flow.
+
+`PASSWORD_RESET_BASE_URL` sets the frontend link destination and defaults to `http://localhost:3000/reset-password`. The reset UI is not implemented yet. `PASSWORD_RESET_FROM` changes the local sender address; `HYPERTUBE_MAILPIT_PORT` changes the host port for the Mailpit inbox.
 
 Handoff completion creates a `user_sessions` row, sets both credentials as HttpOnly cookies, and returns only user and expiry metadata:
 
@@ -125,13 +137,15 @@ Handoff completion creates a `user_sessions` row, sets both credentials as HttpO
 
 The backend sets the JWT in the HttpOnly, host-only `hypertube_access` cookie with `Path=/` and `SameSite=Strict`. The browser sends it automatically on matching backend requests; JavaScript cannot read it, and no authentication token appears in the JSON response. The authentication filter reads only this cookie; Bearer headers are not accepted for user authentication. Use the same browser-facing hostname and scheme for sign-in and the API; cross-origin fetch requests also need `credentials: "include"` and an allowed origin. JWTs use HS256 with a dedicated signing key for this single-service backend. They contain `sub`, `sid`, `jti`, `iat`, `exp`, issuer, audience, and access-token type. Signature, algorithm, type, timestamps, issuer, audience, and identifiers are validated. There is no servlet `HttpSession` or `JSESSIONID`.
 
-The temporary HttpOnly `hypertube_login_proof` cookie binds the one-time login handoff code to the browser that completed OAuth. The Ruby callback generates a random proof and sends only its hash to Spring Boot; completion must present the matching proof cookie and code. A leaked handoff code alone cannot sign in another browser. This cookie is scoped to `/api/auth/login-handoffs/complete`, has a 120-second cookie lifetime, and is deleted after successful completion.
+The temporary HttpOnly `hypertube_login_proof` cookie binds the one-time login handoff code to the browser that completed OAuth. The Ruby callback generates a random proof and sends only its hash to Spring Boot; completion must present the matching proof cookie and code. A leaked handoff code alone cannot sign in another browser. This cookie is scoped to `/api/auth/login-handoffs`. The initial proof lasts two minutes. An accepted pending step refreshes it for that step: 15 minutes for profile completion or two minutes for linking. It is deleted after successful completion.
 
 Refresh credentials are random 256-bit Base64URL strings. Only SHA-256 hashes are stored in PostgreSQL. The `hypertube_refresh` cookie is HttpOnly, host-only, `SameSite=Strict`, and scoped to `/api/auth`. Secure cookies are enabled by default. The local `.env.example` explicitly sets `AUTH_COOKIE_SECURE=false` for HTTP development; use `true` with HTTPS. Keep `AUTH_JWT_SECRET` stable across restarts and shared by backend instances. Generate at least 32 random bytes with `openssl rand -base64 32`. `AUTH_JWT_ISSUER` defaults to `hypertube` and `AUTH_JWT_AUDIENCE` to `hypertube-api`. The Ruby provider service continues to use its separate `AUTH_SESSION_SECRET`.
 
 | Endpoint | Behavior |
 | --- | --- |
-| `POST /api/auth/login-handoffs/complete` | Consumes the browser proof and handoff, saves the user, creates an authentication session, and sets access and refresh cookies plus user/expiry JSON in one transaction. |
+| `POST /api/auth/login-handoffs/complete` | Consumes a completed provider login or returns a pending profile or link state. |
+| `POST /api/auth/login-handoffs/profile?code=<code>` | Completes required profile fields, or starts account verification if its email matches a password account. |
+| `POST /api/auth/login-handoffs/link?code=<code>` | Verifies the existing username and password, links the provider and creates a session. |
 | `GET /api/auth/me` | Returns the user profile authenticated by the access cookie. |
 | `GET /api/auth/csrf` | Sets `XSRF-TOKEN` and returns its `headerName` and `token`. |
 | `POST /api/auth/refresh` | Uses the refresh cookie without requiring a valid access token, rotates refresh credentials, and sets fresh access and refresh cookies without extending the session deadline. |
@@ -158,6 +172,12 @@ From the repository root, run the API smoke test and check the frontend.
 (cd client && npm ci && npm run lint && npm run build)
 ```
 
+With Ruby and Bundler installed, run the OAuth callback cookie test:
+
+```sh
+(cd auth-server && bundle install && bundle exec ruby test/proof_cookie_test.rb)
+```
+
 The JWT and refresh integration tests run when `TEST_DATABASE_URL` is set. They reset the users, handoffs, and revocation tables between cases and use a controllable clock for expiry tests. Start a disposable PostgreSQL database:
 
 ```sh
@@ -174,3 +194,15 @@ docker stop hypertube-session-tests
 `TEST_DATABASE_USER` defaults to `postgres`. Without `TEST_DATABASE_URL`, the PostgreSQL integration tests are skipped and the controller/security tests still run.
 
 With the API running, `curl -fsS http://localhost:8080/api/health` should return `{"status":"UP"}`.
+
+### Profile editing and email confirmation
+
+`GET /api/auth/me` and the existing signed-in user responses include `username`, `firstName` and `lastName` alongside their previous fields. `PATCH /api/users/{id}` requires the matching authenticated user and the normal CSRF cookie and header. Its JSON body can include `username`, `firstName`, `lastName`, `email` and `password`; omitted profile fields are unchanged. Username, name and email validation follow registration. A username change takes effect for login immediately and does not change `displayName`. Another user's ID returns 403. A currently owned username or email returns 409 and no profile fields are saved.
+
+Changing an email also requires reauthentication. For a password-bearing account, provide its current `password` in the PATCH body. The current email remains active until the user opens the emailed link and submits its token as JSON `{ "token": "..." }` to `POST /api/auth/email-change/confirm` with the usual CSRF cookie and header. Confirmation can be anonymous. The token expires after 30 minutes and is single-use. The default link is `http://localhost:3000/confirm-email?token=...`; the client page still needs to be implemented. Configure its destination and sender with `EMAIL_CHANGE_BASE_URL` and `EMAIL_CHANGE_FROM`.
+
+The PATCH response has `user` and `emailChange`, which is `unchanged`, `pending`, or `delivery_failed`. A delivery failure saves valid non-email edits, leaves the old email in place, and retains any previous confirmation link. A later successful delivery supersedes the previous link. Requests are limited in memory to one per minute for each user and destination. Email ownership is checked both on request and atomically on confirmation; a competing claim can therefore make a pending confirmation return 409. Successful confirmation invalidates password-reset links and revokes all existing sessions. It does not create a new session or clear cookies belonging to a different user.
+
+OAuth-only users first call `POST /api/auth/reauth/start` with the normal CSRF and access cookies. The response contains `challenge` and sets a short-lived HttpOnly browser cookie. The auth server permits this form POST from `FRONTEND_ORIGIN` (default `http://localhost:3000`); configure that exact origin when the frontend runs elsewhere. In the same browser, obtain the Ruby provider CSRF token from `GET /auth/providers`, then POST `challenge` and `authenticity_token` as form fields to `/auth/reauth/start` on the auth server. Start the linked provider sign-in using the provider POST with the additional form field `purpose=reauth`. An ordinary provider POST without that field abandons any pending reauthentication. A successful callback returns `{ "status": "verified" }`; it does not issue a login session. Then submit the email PATCH with the same access session and browser cookie. The challenge expires after two minutes, matches the linked stable provider ID, and can be used once. Reauthentication must finish in the same browser and session.
+
+Google reauthentication requests `max_age=0`, a nonce and the `auth_time` ID-token claim, and validates the signed token, issuer, audience, expiry, nonce and subject. When Google supplies `auth_time`, it must be no older than the start of the attempt. OpenID Connect defines `max_age=0` as a request for active authentication, but Google does not list that parameter in its current OAuth reference and its behavior has not been verified against a live Google account. Google may omit `auth_time` unless session-age claims are enabled for an eligible app. If Google returns a stale `auth_time`, the attempt fails; signing out of Google before starting a new attempt and signing back in during that attempt may be necessary. In that case, and for 42, the flow accepts a matching existing provider session; it does not establish that the user freshly entered provider credentials. Invalid tokens and mismatched nonce, state or identity are rejected. Provider network or key retrieval failures also reject the attempt.

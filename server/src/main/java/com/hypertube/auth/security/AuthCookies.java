@@ -19,8 +19,16 @@ public class AuthCookies {
         return headers;
     }
 
+    public String loginProof(String proof, Duration lifetime) {
+        return cookie("hypertube_login_proof", proof, "/api/auth/login-handoffs", lifetime);
+    }
+
+    public String reauth(String secret, Duration lifetime) {
+        return cookie("hypertube_reauth", secret, "/", lifetime);
+    }
+
     public String clearLoginProof() {
-        return cookie("hypertube_login_proof", "", "/api/auth/login-handoffs/complete", Duration.ZERO);
+        return loginProof("", Duration.ZERO);
     }
 
     public HttpHeaders clear() {

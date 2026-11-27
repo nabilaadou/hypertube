@@ -13,6 +13,9 @@ import com.hypertube.auth.security.SecurityConfiguration;
 import com.hypertube.auth.security.SessionPrincipal;
 import com.hypertube.auth.service.AuthService;
 import com.hypertube.auth.service.TokenService;
+import com.hypertube.auth.service.LocalAuthService;
+import com.hypertube.auth.service.PasswordResetService;
+import com.hypertube.auth.service.OAuthFlowService;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -46,6 +49,28 @@ class AuthControllerTest {
     @Autowired private MockMvc mvc;
     @MockitoBean private AuthService auth;
     @MockitoBean private TokenService tokens;
+    @MockitoBean private LocalAuthService local;
+    @MockitoBean private PasswordResetService passwordReset;
+    @MockitoBean private OAuthFlowService oauth;
+
+    @Test
+    void localEndpointsRequireCsrfAndIssueSessionCookies() throws Exception {
+        String registration = """
+                {"username":"Sultan","email":"sultan@example.com","firstName":"Test","lastName":"User","password":"a-strong-password"}
+                """;
+        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(registration))
+                .andExpect(status().isForbidden());
+        when(local.register(any())).thenReturn(TOKENS);
+        mvc.perform(withCsrf("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(registration))
+                .andExpect(status().isOk()).andExpect(cookie().httpOnly(AuthCookies.ACCESS, true))
+                .andExpect(cookie().httpOnly(AuthCookies.REFRESH, true)).andExpect(jsonPath("$.accessToken").doesNotExist());
+        when(local.login(any(), any())).thenReturn(TOKENS);
+        mvc.perform(withCsrf("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"Sultan\",\"password\":\"a-strong-password\"}"))
+                .andExpect(status().isOk()).andExpect(cookie().exists(AuthCookies.ACCESS));
+        mvc.perform(withCsrf("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+    }
 
     @Test
     void createsAuthorizedHandoff() throws Exception {
@@ -66,7 +91,7 @@ class AuthControllerTest {
 
     @Test
     void issuesHttpOnlyCredentialsWithoutReturningTokensInJson() throws Exception {
-        when(tokens.completeLogin(CODE, PROOF)).thenReturn(TOKENS);
+        when(oauth.begin(CODE, PROOF)).thenReturn(new OAuthFlowService.Outcome(OAuthFlowService.Status.AUTHENTICATED, null, TOKENS));
         var result = mvc.perform(post("/api/auth/login-handoffs/complete").param("code", CODE.toString())
                         .cookie(new Cookie("hypertube_login_proof", PROOF)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").doesNotExist())
@@ -87,7 +112,7 @@ class AuthControllerTest {
 
     @Test
     void centralizedHandoffFailureDoesNotClearExistingRefresh() throws Exception {
-        when(tokens.completeLogin(CODE, PROOF))
+        when(oauth.begin(CODE, PROOF))
                 .thenThrow(new AuthException("invalid_handoff", "Invalid handoff", false));
         mvc.perform(post("/api/auth/login-handoffs/complete").param("code", CODE.toString())
                         .cookie(new Cookie("hypertube_login_proof", PROOF)))

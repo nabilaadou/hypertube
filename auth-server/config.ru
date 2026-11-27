@@ -16,6 +16,11 @@ end
 
 auth_base_url = URI(ENV.fetch("AUTH_BASE_URL"))
 spring_public_url = URI(ENV.fetch("SPRING_PUBLIC_URL"))
+frontend_origin = URI(ENV.fetch("FRONTEND_ORIGIN", "http://localhost:3000"))
+unless frontend_origin.is_a?(URI::HTTP) && frontend_origin.host && frontend_origin.userinfo.nil? &&
+       ["", "/"].include?(frontend_origin.path) && frontend_origin.query.nil? && frontend_origin.fragment.nil?
+  abort "FRONTEND_ORIGIN must be an http(s) origin"
+end
 spring_internal_url = ENV.fetch("SPRING_INTERNAL_URL")
 forty_two_credentials = oauth_credentials("FORTY_TWO")
 google_credentials = oauth_credentials("GOOGLE")
@@ -24,6 +29,7 @@ AuthServer.set :providers, {
   "marvin" => { id: "42", enabled: !forty_two_credentials.nil? },
   "google_oauth2" => { id: "google", enabled: !google_credentials.nil? }
 }
+AuthServer.set :frontend_origin, frontend_origin.origin
 AuthServer.set :google_client_id, google_credentials&.first
 AuthServer.set :spring_public_url, spring_public_url
 AuthServer.set :login_handoff_secret, ENV.fetch("AUTH_HANDOFF_SECRET")

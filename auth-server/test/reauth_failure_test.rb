@@ -140,3 +140,23 @@ unless result.status == 200 && $reauth_callbacks == 1 && $handoffs.zero?
   raise "marked 42 reauth did not complete through the reauthentication route"
 end
 puts "42: marked reauthentication survives a rejected CSRF request"
+
+providers = request.get("#{base}/auth/providers", **host)
+csrf = JSON.parse(providers.body).fetch("csrfToken")
+cookie = session_cookie(providers)
+proof_cookie = "#{cookie}; hypertube_reauth=browser-proof"
+form = { "authenticity_token" => csrf, "challenge" => "7d87e5dc-cf71-421f-9e7c-853155898d67" }
+frontend_origin = ENV.fetch("FRONTEND_ORIGIN", "http://localhost:3000")
+allowed = request.post("#{base}/auth/reauth/start", **host, "HTTP_COOKIE" => proof_cookie,
+                       "HTTP_ORIGIN" => frontend_origin, params: form)
+raise "configured frontend origin rejected: #{allowed.status}" unless allowed.status == 200
+untrusted = request.post("#{base}/auth/reauth/start", **host, "HTTP_COOKIE" => proof_cookie,
+                         "HTTP_ORIGIN" => "http://untrusted.example", params: form)
+raise "untrusted origin accepted" unless untrusted.status == 403
+missing_csrf = request.post("#{base}/auth/reauth/start", **host, "HTTP_COOKIE" => proof_cookie,
+                            "HTTP_ORIGIN" => frontend_origin, params: { "challenge" => form.fetch("challenge") })
+raise "configured origin bypassed CSRF" unless missing_csrf.status == 403
+other_route = request.post("#{base}/auth/reauth/other", **host, "HTTP_COOKIE" => proof_cookie,
+                           "HTTP_ORIGIN" => frontend_origin, params: form)
+raise "origin exception applied to another path" unless other_route.status == 403
+puts "configured frontend allowed only for reauth start with CSRF"

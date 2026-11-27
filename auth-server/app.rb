@@ -21,7 +21,13 @@ class AuthServer < Sinatra::Base
   set :show_exceptions, false
   set :dump_errors, false
   set :static, false
-  set :protection, except: :json_csrf
+  set :frontend_origin, nil
+  set :protection, except: %i[json_csrf http_origin]
+
+  use Rack::Protection::HttpOrigin, reaction: :drop_session, allow_if: ->(env) {
+    env["REQUEST_METHOD"] == "POST" && env["PATH_INFO"] == "/auth/reauth/start" &&
+      env["HTTP_ORIGIN"] == AuthServer.settings.frontend_origin
+  }
 
   use Rack::Protection::JsonCsrf, allow_if: ->(env) {
     env["REQUEST_METHOD"] == "GET" &&

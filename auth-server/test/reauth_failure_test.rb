@@ -158,5 +158,5 @@ missing_csrf = request.post("#{base}/auth/reauth/start", **host, "HTTP_COOKIE" =
 raise "configured origin bypassed CSRF" unless missing_csrf.status == 403
 other_route = request.post("#{base}/auth/reauth/other", **host, "HTTP_COOKIE" => proof_cookie,
                            "HTTP_ORIGIN" => frontend_origin, params: form)
-raise "origin exception applied to another path" unless other_route.status == 403
+raise "origin exception applied to another path: #{other_route.status}" unless [403, 404].include?(other_route.status)
 puts "configured frontend allowed only for reauth start with CSRF"

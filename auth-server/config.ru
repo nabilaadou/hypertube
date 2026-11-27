@@ -36,7 +36,7 @@ OmniAuth.configure do |config|
   config.allowed_hosts = [auth_base_url.host]
   config.logger = Logger.new(File::NULL)
   config.on_failure do |request_env|
-    AuthServer.clear_reauth_session(request_env["rack.session"])
+    AuthServer.clear_reauth_session(request_env["rack.session"]) if request_env["PATH_INFO"].end_with?("/callback")
     error_type = request_env["omniauth.error.type"]
     reason = error_type == :access_denied ? "cancelled" : "sign_in_failed"
     [400, { "content-type" => "application/json", "cache-control" => "no-store",
@@ -51,6 +51,8 @@ use Rack::Session::Cookie,
     httponly: true,
     secure: auth_base_url.scheme == "https",
     expire_after: 600
+
+use ReauthIntent
 
 use OmniAuth::Builder do
   if forty_two_credentials

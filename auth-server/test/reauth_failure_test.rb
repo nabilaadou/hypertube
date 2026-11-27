@@ -56,7 +56,7 @@ host = { "HTTP_HOST" => "localhost:4567" }
     raise "reauth start failed" unless start.status == 200
     cookie = session_cookie(start, cookie)
     provider_start = request.post("#{base}/auth/#{provider}", **host, "HTTP_COOKIE" => cookie,
-                                  params: { "authenticity_token" => csrf })
+                                  params: { "authenticity_token" => csrf, "purpose" => "reauth" })
     raise "provider start failed" unless provider_start.status == 302
     cookie = session_cookie(provider_start, cookie)
     state = URI.decode_www_form(URI(provider_start["location"]).query).to_h.fetch("state")
@@ -81,3 +81,62 @@ host = { "HTTP_HOST" => "localhost:4567" }
     puts "#{provider} #{failure}: ordinary sign-in recovered"
   end
 end
+
+%w[google_oauth2 marvin].each do |provider|
+  $handoffs = 0
+  $reauth_callbacks = 0
+  providers = request.get("#{base}/auth/providers", **host)
+  csrf = JSON.parse(providers.body).fetch("csrfToken")
+  cookie = session_cookie(providers)
+  start = request.post("#{base}/auth/reauth/start", **host,
+                       "HTTP_COOKIE" => "#{cookie}; hypertube_reauth=browser-proof",
+                       params: { "authenticity_token" => csrf, "challenge" => "7d87e5dc-cf71-421f-9e7c-853155898d67" })
+  raise "reauth start failed" unless start.status == 200
+  cookie = session_cookie(start, cookie)
+  normal = request.post("#{base}/auth/#{provider}", **host, "HTTP_COOKIE" => cookie,
+                        params: { "authenticity_token" => csrf })
+  raise "normal login start failed after abandoned reauth" unless normal.status == 302
+  cookie = session_cookie(normal, cookie)
+  query = URI.decode_www_form(URI(normal["location"]).query).to_h
+  raise "abandoned reauth changed ordinary sign-in" if query.key?("max_age") || query.key?("claims")
+  callback = request.get("#{base}/auth/#{provider}/callback?#{URI.encode_www_form(code: 'test', state: query.fetch('state'))}",
+                         **host, "HTTP_COOKIE" => cookie, "HTTP_REFERER" => "https://provider.example/")
+  unless callback.status == 200 && $handoffs == 1 && $reauth_callbacks.zero?
+    raise "#{provider} abandoned reauth: status #{callback.status}, handoffs #{$handoffs}, reauth #{$reauth_callbacks}"
+  end
+  puts "#{provider}: ordinary sign-in recovered after abandoned reauth"
+end
+
+%w[google_oauth2 marvin].each do |provider|
+  providers = request.get("#{base}/auth/providers", **host)
+  csrf = JSON.parse(providers.body).fetch("csrfToken")
+  cookie = session_cookie(providers)
+  without_challenge = request.post("#{base}/auth/#{provider}", **host, "HTTP_COOKIE" => cookie,
+                                   params: { "authenticity_token" => csrf, "purpose" => "reauth" })
+  raise "#{provider} accepted reauth without a challenge" unless without_challenge.status == 400
+  puts "#{provider}: marked reauth without challenge rejected"
+end
+
+$handoffs = 0
+$reauth_callbacks = 0
+providers = request.get("#{base}/auth/providers", **host)
+csrf = JSON.parse(providers.body).fetch("csrfToken")
+cookie = session_cookie(providers)
+start = request.post("#{base}/auth/reauth/start", **host,
+                     "HTTP_COOKIE" => "#{cookie}; hypertube_reauth=browser-proof",
+                     params: { "authenticity_token" => csrf, "challenge" => "7d87e5dc-cf71-421f-9e7c-853155898d67" })
+cookie = session_cookie(start, cookie)
+denied = request.post("#{base}/auth/marvin", **host, "HTTP_COOKIE" => cookie)
+raise "provider start without CSRF returned #{denied.status}" unless denied.status == 400
+cookie = session_cookie(denied, cookie)
+started = request.post("#{base}/auth/marvin", **host, "HTTP_COOKIE" => cookie,
+                       params: { "authenticity_token" => csrf, "purpose" => "reauth" })
+raise "CSRF failure cleared a pending reauth" unless started.status == 302
+cookie = session_cookie(started, cookie)
+state = URI.decode_www_form(URI(started["location"]).query).to_h.fetch("state")
+result = request.get("#{base}/auth/marvin/callback?#{URI.encode_www_form(code: 'test', state: state)}", **host,
+                     "HTTP_COOKIE" => cookie, "HTTP_REFERER" => "https://provider.example/")
+unless result.status == 200 && $reauth_callbacks == 1 && $handoffs.zero?
+  raise "marked 42 reauth did not complete through the reauthentication route"
+end
+puts "42: marked reauthentication survives a rejected CSRF request"

@@ -83,7 +83,7 @@ end
   raise "start failed #{start.status}" unless start.status == 200
   cookie = session_cookie(start, cookie)
   provider = request.post("#{base}/auth/google_oauth2", "HTTP_HOST" => "localhost:4567", "HTTP_COOKIE" => cookie,
-                          params: { "authenticity_token" => csrf })
+                          params: { "authenticity_token" => csrf, "purpose" => "reauth" })
   raise "provider start failed #{provider.status}" unless provider.status == 302
   cookie = session_cookie(provider, cookie)
   query = URI.decode_www_form(URI(provider["location"]).query).to_h

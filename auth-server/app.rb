@@ -161,3 +161,28 @@ class AuthServer < Sinatra::Base
     JSON.generate(error: "sign_in_failed")
   end
 end
+
+class ReauthIntent
+  PROVIDER_START = %r{\A/auth/(?:google_oauth2|marvin)\z}
+
+  def initialize(app)
+    @app = app
+  end
+
+  def call(env)
+    request = Rack::Request.new(env)
+    if request.post? && PROVIDER_START.match?(request.path) && Rack::Protection::AuthenticityToken.new(nil).accepts?(env)
+      session = env["rack.session"]
+      if request.params["purpose"] == "reauth"
+        started = session["hypertube.reauth_started"].to_i
+        unless session["hypertube.reauth_challenge"] && started.positive? && Time.now.to_i - started < 120 && started <= Time.now.to_i
+          AuthServer.clear_reauth_session(session)
+          return [400, { "content-type" => "application/json", "cache-control" => "no-store" }, [JSON.generate(error: "reauth_expired")]]
+        end
+      else
+        AuthServer.clear_reauth_session(session)
+      end
+    end
+    @app.call(env)
+  end
+end

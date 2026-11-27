@@ -48,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @EnabledIfEnvironmentVariable(named = "TEST_DATABASE_URL", matches = ".+")
@@ -694,6 +695,373 @@ class TokenIntegrationTest {
     }
     private boolean revoked(UUID id) { return Boolean.TRUE.equals(jdbc.queryForObject("SELECT revoked FROM user_sessions WHERE id = ?", Boolean.class, id)); }
     private record Credentials(String access, Cookie refresh, long userId, UUID id) {}
+
+    @Test
+    void profileEmailConfirmationRevokesSessionsAndPreservesDisplayName() throws Exception {
+        var user = localRegistration("profile_edit", "profile-old@example.com");
+        var csrf = mvc.perform(get("/api/auth/csrf")).andReturn().getResponse();
+        String token = JsonPath.read(csrf.getContentAsString(), "$.token");
+        mvc.perform(patch("/api/users/" + user.userId()).cookie(csrf.getCookie("XSRF-TOKEN"), new Cookie(AuthCookies.ACCESS, user.access()))
+                .header("X-XSRF-TOKEN", token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"changed_name\",\"firstName\":\"New\",\"email\":\"profile-new@example.com\",\"password\":\"a-strong-password\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.emailChange").value("pending"))
+                .andExpect(jsonPath("$.user.email").value("profile-old@example.com"))
+                .andExpect(jsonPath("$.user.displayName").value("profile_edit"))
+                .andExpect(jsonPath("$.user.username").value("changed_name"));
+        String confirmation = sentResetToken();
+        mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + confirmation + "\"}")).andExpect(status().isNoContent());
+        me(user).andExpect(status().isUnauthorized());
+        mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + confirmation + "\"}")).andExpect(status().isUnauthorized());
+        mvc.perform(withCsrf("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"changed_name\",\"password\":\"a-strong-password\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.user.email").value("profile-new@example.com"));
+    }
+
+    private ResultActions edit(Credentials user, long target, String body) throws Exception {
+        var csrf = mvc.perform(get("/api/auth/csrf")).andReturn().getResponse();
+        String token = JsonPath.read(csrf.getContentAsString(), "$.token");
+        return mvc.perform(patch("/api/users/" + target).cookie(csrf.getCookie("XSRF-TOKEN"), new Cookie(AuthCookies.ACCESS, user.access()))
+                .header("X-XSRF-TOKEN", token).contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+
+    @Test
+    void failedDeliveryPreservesPreviousTokenAndCommitsOtherEdits() throws Exception {
+        var user = localRegistration("delivery_user", "delivery-old@example.com");
+        edit(user, user.userId(), "{\"email\":\"delivery-first@example.com\",\"password\":\"a-strong-password\"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.emailChange").value("pending"));
+        String confirmation = sentResetToken();
+        clock.advance(Duration.ofMinutes(1));
+        doThrow(new MailSendException("failure")).when(mail).send(any(SimpleMailMessage.class));
+        edit(user, user.userId(), "{\"email\":\"delivery-second@example.com\",\"password\":\"a-strong-password\",\"firstName\":\"Saved\"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.emailChange").value("delivery_failed"))
+                .andExpect(jsonPath("$.user.firstName").value("Saved"));
+        mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + confirmation + "\"}")).andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, user.userId())).isEqualTo("delivery-first@example.com");
+    }
+
+    @Test
+    void invalidProfileAndWrongPasswordSaveNothing() throws Exception {
+        var user = localRegistration("invalid_edit", "invalid-edit@example.com");
+        var other = localRegistration("another_edit", "another-edit@example.com");
+        edit(user, other.userId(), "{\"firstName\":\"Wrong\"}").andExpect(status().isForbidden());
+        edit(user, user.userId(), "{\"firstName\":\"Wrong\",\"email\":\"another-edit@example.com\",\"password\":\"a-strong-password\"}")
+                .andExpect(status().isConflict());
+        verify(mail, never()).send(any(SimpleMailMessage.class));
+        edit(user, user.userId(), "{\"firstName\":\"Wrong\",\"email\":\"invalid-new@example.com\",\"password\":\"bad\"}")
+                .andExpect(status().isUnauthorized());
+        edit(user, user.userId(), "{\"firstName\":\" \",\"lastName\":\"Wrong\"}").andExpect(status().isBadRequest());
+        me(user).andExpect(jsonPath("$.firstName").value("First")).andExpect(jsonPath("$.lastName").value("Last"));
+    }
+
+    @Test
+    void oauthReauthIsBoundToBrowserProviderAndSessionAndConsumedOnce() throws Exception {
+        var user = login();
+        var second = from(mvc.perform(complete(rawHandoff("google", "session-test", null))).andExpect(status().isOk()).andReturn());
+        var start = mvc.perform(withCsrf("/api/auth/reauth/start").cookie(new Cookie(AuthCookies.ACCESS, user.access())))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        String challenge = JsonPath.read(start.getContentAsString(), "$.challenge");
+        Cookie proof = start.getCookie("hypertube_reauth");
+        assertThat(proof).isNotNull();
+        String callback = "{\"challenge\":\"%s\",\"secret\":\"%s\",\"provider\":\"google\",\"providerUserId\":\"%s\"}";
+        mvc.perform(post("/internal/auth/reauth/callback").header("Authorization", "Bearer " + SECRET)
+                .contentType(MediaType.APPLICATION_JSON).content(callback.formatted(challenge, proof.getValue(), "wrong")))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/internal/auth/reauth/callback").header("Authorization", "Bearer " + SECRET)
+                .contentType(MediaType.APPLICATION_JSON).content(callback.formatted(challenge, "wrong", "session-test")))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/internal/auth/reauth/callback").header("Authorization", "Bearer " + SECRET)
+                .contentType(MediaType.APPLICATION_JSON).content(callback.formatted(challenge, proof.getValue(), "session-test")))
+                .andExpect(status().isNoContent());
+        var csrf = mvc.perform(get("/api/auth/csrf")).andReturn().getResponse();
+        String csrfToken = JsonPath.read(csrf.getContentAsString(), "$.token");
+        String body = "{\"email\":\"oauth-new@example.com\"}";
+        mvc.perform(patch("/api/users/" + user.userId()).cookie(csrf.getCookie("XSRF-TOKEN"), new Cookie(AuthCookies.ACCESS, second.access()), proof)
+                .header("X-XSRF-TOKEN", csrfToken).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+        mvc.perform(patch("/api/users/" + user.userId()).cookie(csrf.getCookie("XSRF-TOKEN"), new Cookie(AuthCookies.ACCESS, user.access()), proof)
+                .header("X-XSRF-TOKEN", csrfToken).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk());
+        mvc.perform(patch("/api/users/" + user.userId()).cookie(csrf.getCookie("XSRF-TOKEN"), new Cookie(AuthCookies.ACCESS, user.access()), proof)
+                .header("X-XSRF-TOKEN", csrfToken).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void competingEmailClaimsAreResolvedAtConfirmation() throws Exception {
+        var first = localRegistration("claim_first", "claim-first@example.com");
+        var second = localRegistration("claim_second", "claim-second@example.com");
+        String body = "{\"email\":\"claimed@example.com\",\"password\":\"a-strong-password\"}";
+        edit(first, first.userId(), body).andExpect(status().isOk());
+        clock.advance(Duration.ofMinutes(1));
+        edit(second, second.userId(), body).andExpect(status().isOk());
+        var messages = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mail, times(2)).send(messages.capture());
+        var tokens = messages.getAllValues().stream().map(this::tokenFrom).toList();
+        var gate = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            java.util.function.Function<String, java.util.concurrent.Callable<Integer>> confirm = token -> () -> {
+                assertThat(gate.await(10, TimeUnit.SECONDS)).isTrue();
+                return mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"" + token + "\"}")).andReturn().getResponse().getStatus();
+            };
+            var a = executor.submit(confirm.apply(tokens.get(0)));
+            var b = executor.submit(confirm.apply(tokens.get(1)));
+            gate.countDown();
+            assertThat(List.of(a.get(15, TimeUnit.SECONDS), b.get(15, TimeUnit.SECONDS)).stream().sorted().toList())
+                    .containsExactly(204, 409);
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE lower(email) = 'claimed@example.com'", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void confirmationInvalidatesResetTokensAndDoesNotClearUnrelatedCookies() throws Exception {
+        var user = localRegistration("reset_profile", "reset-profile@example.com");
+        var other = localRegistration("unrelated_profile", "unrelated-profile@example.com");
+        requestReset("reset-profile@example.com").andExpect(status().isAccepted());
+        edit(user, user.userId(), "{\"email\":\"reset-profile-new@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isOk());
+        var messages = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mail, times(2)).send(messages.capture());
+        String resetToken = tokenFrom(messages.getAllValues().getFirst());
+        String emailToken = tokenFrom(messages.getAllValues().getLast());
+        mvc.perform(withCsrf("/api/auth/email-change/confirm", new Cookie(AuthCookies.ACCESS, other.access()))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"token\":\"" + emailToken + "\"}"))
+                .andExpect(status().isNoContent()).andExpect(cookie().doesNotExist(AuthCookies.ACCESS))
+                .andExpect(cookie().doesNotExist(AuthCookies.REFRESH));
+        confirmReset(resetToken).andExpect(status().isUnauthorized());
+        me(other).andExpect(status().isOk());
+    }
+
+    @Test
+    void emailConfirmationExpiresAfterThirtyMinutes() throws Exception {
+        var user = localRegistration("expiry_profile", "expiry-profile@example.com");
+        edit(user, user.userId(), "{\"email\":\"expiry-profile-new@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isOk());
+        String token = sentResetToken();
+        clock.advance(Duration.ofMinutes(30));
+        mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + token + "\"}")).andExpect(status().isUnauthorized());
+        assertThat(jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, user.userId())).isEqualTo("expiry-profile@example.com");
+    }
+
+    @Test
+    void concurrentEmailConfirmationsConsumeTheLinkOnlyOnce() throws Exception {
+        var user = localRegistration("email_race", "email-race@example.com");
+        edit(user, user.userId(), "{\"email\":\"email-race-new@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isOk());
+        String token = sentResetToken();
+        var gate = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            java.util.concurrent.Callable<Integer> confirm = () -> {
+                assertThat(gate.await(10, TimeUnit.SECONDS)).isTrue();
+                return mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"" + token + "\"}")).andReturn().getResponse().getStatus();
+            };
+            var a = executor.submit(confirm);
+            var b = executor.submit(confirm);
+            gate.countDown();
+            assertThat(List.of(a.get(15, TimeUnit.SECONDS), b.get(15, TimeUnit.SECONDS)).stream().sorted().toList())
+                    .containsExactly(204, 401);
+        }
+    }
+
+    @Test
+    void emailRequestsAreLimitedPerUserAndDestination() throws Exception {
+        var first = localRegistration("limit_first", "limit-first@example.com");
+        var second = localRegistration("limit_second", "limit-second@example.com");
+        edit(first, first.userId(), "{\"email\":\"limit-new@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isOk());
+        edit(first, first.userId(), "{\"email\":\"limit-other@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isTooManyRequests());
+        edit(second, second.userId(), "{\"email\":\"LIMIT-NEW@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isTooManyRequests());
+        verify(mail, times(1)).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    void usernameConflictsAreNormalizedAndDoNotSaveOtherEdits() throws Exception {
+        var first = localRegistration("unique_first", "unique-first@example.com");
+        localRegistration("unique_second", "unique-second@example.com");
+        edit(first, first.userId(), "{\"username\":\"UNIQUE_SECOND\",\"firstName\":\"Wrong\"}")
+                .andExpect(status().isConflict());
+        me(first).andExpect(jsonPath("$.username").value("unique_first")).andExpect(jsonPath("$.firstName").value("First"));
+    }
+
+    @Test
+    void passwordReauthenticationUsesLoginRateLimits() throws Exception {
+        var user = localRegistration("reauth_limit", "reauth-limit@example.com");
+        String body = "{\"firstName\":\"Wrong\",\"email\":\"reauth-limit-new@example.com\",\"password\":\"bad\"}";
+        for (int i = 0; i < 5; i++) edit(user, user.userId(), body).andExpect(status().isUnauthorized());
+        edit(user, user.userId(), "{\"email\":\"reauth-limit-new@example.com\",\"password\":\"a-strong-password\"}")
+                .andExpect(status().isTooManyRequests());
+        me(user).andExpect(jsonPath("$.firstName").value("First"));
+        verify(mail, never()).send(any(SimpleMailMessage.class));
+    }
+
+    private void awaitWaitingQuery(String fragment) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            Integer count = jdbc.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND lower(query) LIKE lower(?)",
+                    Integer.class, "%" + fragment + "%");
+            if (count != null && count > 0) return;
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Expected database lock wait for " + fragment);
+    }
+
+    @Test
+    void confirmationWaitsForConcurrentLoginAndRevokesItsSession() throws Exception {
+        var user = localRegistration("login_race", "login-race@example.com");
+        edit(user, user.userId(), "{\"email\":\"login-race-new@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isOk());
+        String token = sentResetToken();
+        try (var executor = Executors.newFixedThreadPool(2); var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("SELECT id FROM users WHERE id = ? FOR UPDATE")) {
+                lock.setLong(1, user.userId()); lock.executeQuery();
+            }
+            var login = executor.submit(() -> mvc.perform(withCsrf("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"username\":\"login_race\",\"password\":\"a-strong-password\"}")).andReturn());
+            awaitWaitingQuery("SELECT id, password_hash FROM users");
+            var confirm = executor.submit(() -> mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"token\":\"" + token + "\"}")).andReturn());
+            awaitWaitingQuery("FROM users u JOIN email_change_tokens");
+            connection.commit();
+            var created = from(login.get(15, TimeUnit.SECONDS));
+            assertThat(confirm.get(15, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(204);
+            me(user).andExpect(status().isUnauthorized());
+            me(created).andExpect(status().isUnauthorized());
+            refresh(created.refresh()).andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Test
+    void confirmationWaitsForConcurrentPasswordResetAndRevokesItsSession() throws Exception {
+        var user = localRegistration("reset_race_profile", "reset-race-profile@example.com");
+        requestReset("reset-race-profile@example.com").andExpect(status().isAccepted());
+        edit(user, user.userId(), "{\"email\":\"reset-race-profile-new@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isOk());
+        var messages = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mail, times(2)).send(messages.capture());
+        String resetToken = tokenFrom(messages.getAllValues().getFirst());
+        String emailToken = tokenFrom(messages.getAllValues().getLast());
+        try (var executor = Executors.newFixedThreadPool(2); var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("SELECT id FROM users WHERE id = ? FOR UPDATE")) {
+                lock.setLong(1, user.userId()); lock.executeQuery();
+            }
+            var reset = executor.submit(() -> confirmReset(resetToken).andReturn());
+            awaitWaitingQuery("FROM users u JOIN password_reset_tokens");
+            var confirm = executor.submit(() -> mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"token\":\"" + emailToken + "\"}")).andReturn());
+            awaitWaitingQuery("FROM users u JOIN email_change_tokens");
+            connection.commit();
+            var created = from(reset.get(15, TimeUnit.SECONDS));
+            assertThat(confirm.get(15, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(204);
+            me(user).andExpect(status().isUnauthorized());
+            me(created).andExpect(status().isUnauthorized());
+            refresh(created.refresh()).andExpect(status().isUnauthorized());
+            confirmReset(resetToken).andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Test
+    void confirmationWaitsForConcurrentRefreshAndRevokesRotatedCredentials() throws Exception {
+        var user = localRegistration("refresh_race", "refresh-race@example.com");
+        edit(user, user.userId(), "{\"email\":\"refresh-race-new@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isOk());
+        String token = sentResetToken();
+        try (var executor = Executors.newFixedThreadPool(2); var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("SELECT id FROM user_sessions WHERE id = ? FOR UPDATE")) {
+                lock.setObject(1, user.id()); lock.executeQuery();
+            }
+            var rotating = executor.submit(() -> refresh(user.refresh()).andReturn());
+            awaitWaitingQuery("user_sessions");
+            var confirm = executor.submit(() -> mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"token\":\"" + token + "\"}")).andReturn());
+            awaitWaitingQuery("SELECT id FROM user_sessions WHERE user_id");
+            connection.commit();
+            var rotated = from(rotating.get(15, TimeUnit.SECONDS));
+            assertThat(confirm.get(15, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(204);
+            me(user).andExpect(status().isUnauthorized());
+            me(rotated).andExpect(status().isUnauthorized());
+            refresh(rotated.refresh()).andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Test
+    void confirmationAndConcurrentLogoutCompleteWithoutDeadlock() throws Exception {
+        var user = localRegistration("logout_race", "logout-race@example.com");
+        edit(user, user.userId(), "{\"email\":\"logout-race-new@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isOk());
+        String token = sentResetToken();
+        try (var executor = Executors.newFixedThreadPool(2); var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("SELECT id FROM user_sessions WHERE id = ? FOR UPDATE")) {
+                lock.setObject(1, user.id()); lock.executeQuery();
+            }
+            var logout = executor.submit(() -> mvc.perform(withCsrf("/api/auth/logout", user.refresh())
+                    .cookie(new Cookie(AuthCookies.ACCESS, user.access()))).andReturn());
+            awaitWaitingQuery("user_sessions");
+            var confirm = executor.submit(() -> mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"token\":\"" + token + "\"}")).andReturn());
+            awaitWaitingQuery("SELECT id FROM user_sessions WHERE user_id");
+            connection.commit();
+            assertThat(logout.get(15, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(204);
+            assertThat(confirm.get(15, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(204);
+            me(user).andExpect(status().isUnauthorized());
+            refresh(user.refresh()).andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Test
+    void cleanupSkipsLockedRevokedSessionDuringConfirmation() throws Exception {
+        var old = localRegistration("cleanup_race", "cleanup-race@example.com");
+        var active = from(mvc.perform(withCsrf("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"cleanup_race\",\"password\":\"a-strong-password\"}")).andReturn());
+        mvc.perform(withCsrf("/api/auth/logout", old.refresh()).cookie(new Cookie(AuthCookies.ACCESS, old.access())))
+                .andExpect(status().isNoContent());
+        edit(active, active.userId(), "{\"email\":\"cleanup-race-new@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isOk());
+        String token = sentResetToken();
+        try (var executor = Executors.newFixedThreadPool(2); var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("SELECT id FROM user_sessions WHERE id = ? FOR UPDATE")) {
+                lock.setObject(1, old.id()); lock.executeQuery();
+            }
+            var confirm = executor.submit(() -> mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"token\":\"" + token + "\"}")).andReturn());
+            awaitWaitingQuery("SELECT id FROM user_sessions WHERE user_id");
+            executor.submit(cleanup::cleanup).get(15, TimeUnit.SECONDS);
+            connection.commit();
+            assertThat(confirm.get(15, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(204);
+            me(old).andExpect(status().isUnauthorized());
+            me(active).andExpect(status().isUnauthorized());
+            cleanup.cleanup();
+            me(old).andExpect(status().isUnauthorized());
+            me(active).andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Test
+    void oauthReauthenticationExpiresAfterTwoMinutes() throws Exception {
+        var user = login();
+        var start = mvc.perform(withCsrf("/api/auth/reauth/start").cookie(new Cookie(AuthCookies.ACCESS, user.access())))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        String challenge = JsonPath.read(start.getContentAsString(), "$.challenge");
+        String proof = start.getCookie("hypertube_reauth").getValue();
+        clock.advance(Duration.ofMinutes(2));
+        mvc.perform(post("/internal/auth/reauth/callback").header("Authorization", "Bearer " + SECRET)
+                .contentType(MediaType.APPLICATION_JSON).content("""
+                        {"challenge":"%s","secret":"%s","provider":"google","providerUserId":"session-test"}
+                        """.formatted(challenge, proof))).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void newestDeliveredConfirmationInvalidatesThePreviousLink() throws Exception {
+        var user = localRegistration("newest_email", "newest-email@example.com");
+        edit(user, user.userId(), "{\"email\":\"newest-first@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isOk());
+        clock.advance(Duration.ofMinutes(1));
+        edit(user, user.userId(), "{\"email\":\"newest-second@example.com\",\"password\":\"a-strong-password\"}").andExpect(status().isOk());
+        var messages = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mail, times(2)).send(messages.capture());
+        String previous = tokenFrom(messages.getAllValues().getFirst());
+        String current = tokenFrom(messages.getAllValues().getLast());
+        mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + previous + "\"}")).andExpect(status().isUnauthorized());
+        mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + current + "\"}")).andExpect(status().isNoContent());
+    }
 
     @TestConfiguration(proxyBeanMethods = false)
     static class ClockConfiguration {

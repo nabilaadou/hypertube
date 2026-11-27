@@ -3,6 +3,7 @@ require "omniauth-google-oauth2"
 require "rack/session/cookie"
 require "uri"
 require_relative "strategies/marvin"
+require_relative "strategies/google_reauth"
 require_relative "app"
 
 def oauth_credentials(provider_prefix)
@@ -23,9 +24,11 @@ AuthServer.set :providers, {
   "marvin" => { id: "42", enabled: !forty_two_credentials.nil? },
   "google_oauth2" => { id: "google", enabled: !google_credentials.nil? }
 }
+AuthServer.set :google_client_id, google_credentials&.first
 AuthServer.set :spring_public_url, spring_public_url
 AuthServer.set :login_handoff_secret, ENV.fetch("AUTH_HANDOFF_SECRET")
 AuthServer.set :login_handoff_url, URI.join(spring_internal_url, "/internal/auth/login-handoffs")
+AuthServer.set :reauth_callback_url, URI.join(spring_internal_url, "/internal/auth/reauth/callback")
 AuthServer.set :host_authorization, { permitted_hosts: [auth_base_url.hostname] }
 
 OmniAuth.configure do |config|
@@ -54,7 +57,7 @@ use OmniAuth::Builder do
   end
 
   if google_credentials
-    provider :google_oauth2, *google_credentials,
+    provider GoogleReauth, *google_credentials,
              scope: "openid email profile",
              access_type: "online",
              overridable_authorize_options: [],

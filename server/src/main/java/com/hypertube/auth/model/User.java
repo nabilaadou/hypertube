@@ -26,5 +26,14 @@ public class User {
     @Column(length = 254)
     private String email;
 
+    @Column(length = 120)
+    private String username;
+
+    @Column(name = "first_name", length = 128)
+    private String firstName;
+
+    @Column(name = "last_name", length = 128)
+    private String lastName;
+
     protected User() {}
 }

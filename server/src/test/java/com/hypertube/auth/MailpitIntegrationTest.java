@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @EnabledIfEnvironmentVariable(named = "TEST_MAILPIT_ENABLED", matches = "true")
@@ -53,6 +54,33 @@ class MailpitIntegrationTest {
         mvc.perform(withCsrf("/api/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"token\":\"" + token + "\",\"password\":\"replacement-password\"}"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void sendsEmailConfirmationThroughMailpit() throws Exception {
+        jdbc.update("DELETE FROM users");
+        var registration = mvc.perform(withCsrf("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content("""
+                {"username":"mailprofile","email":"mailprofile@example.com","firstName":"Mail","lastName":"Test","password":"original-password"}
+                """)).andExpect(status().isOk()).andReturn().getResponse();
+        int id = JsonPath.read(registration.getContentAsString(), "$.user.id");
+        var csrf = mvc.perform(get("/api/auth/csrf")).andReturn().getResponse();
+        String csrfToken = JsonPath.read(csrf.getContentAsString(), "$.token");
+        mvc.perform(patch("/api/users/" + id).cookie(registration.getCookie("hypertube_access"), csrf.getCookie("XSRF-TOKEN"))
+                .header("X-XSRF-TOKEN", csrfToken).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"mailprofile-new@example.com\",\"password\":\"original-password\"}"))
+                .andExpect(status().isOk());
+        var http = HttpClient.newHttpClient();
+        String inbox = http.send(HttpRequest.newBuilder(URI.create("http://localhost:18025/api/v1/messages")).build(),
+                HttpResponse.BodyHandlers.ofString()).body();
+        String messageId = JsonPath.read(inbox, "$.messages[0].ID");
+        String message = http.send(HttpRequest.newBuilder(URI.create("http://localhost:18025/api/v1/message/" + messageId)).build(),
+                HttpResponse.BodyHandlers.ofString()).body();
+        String text = JsonPath.read(message, "$.Text");
+        assertThat(text).contains("http://localhost:3000/confirm-email?token=");
+        String token = text.substring(text.indexOf("?token=") + 7).strip();
+        mvc.perform(withCsrf("/api/auth/email-change/confirm").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + token + "\"}")).andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, id)).isEqualTo("mailprofile-new@example.com");
     }
 
     private MockHttpServletRequestBuilder withCsrf(String path) throws Exception {

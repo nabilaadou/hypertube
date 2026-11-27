@@ -3,6 +3,7 @@ require "digest"
 require "json"
 require "net/http"
 require "securerandom"
+require "jwt"
 
 class AuthServer < Sinatra::Base
   LOGIN_COMPLETE_PATH = "/api/auth/login-handoffs/complete".freeze
@@ -28,6 +29,42 @@ class AuthServer < Sinatra::Base
   end
 
   helpers do
+    def verify_google_reauth(account)
+      nonce = session.delete("hypertube.reauth_nonce").to_s
+      started = session.delete("hypertube.reauth_started").to_i
+      token = account.extra&.id_token.to_s
+      halt 401, JSON.generate(error: "reauth_failed") if nonce.empty? || started.zero? || token.empty?
+      uri = URI("https://www.googleapis.com/oauth2/v3/certs")
+      response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 3, read_timeout: 5) do |http|
+        http.get(uri.request_uri)
+      end
+      raise "key retrieval failed" unless response.is_a?(Net::HTTPSuccess)
+      keys = JWT::JWK::Set.new(JSON.parse(response.body))
+      claims = JWT.decode(token, nil, true, algorithms: ["RS256"], jwks: keys,
+                          required_claims: %w[iss aud exp sub nonce],
+                          iss: ["accounts.google.com", "https://accounts.google.com"], verify_iss: true,
+                          aud: settings.google_client_id, verify_aud: true, verify_expiration: true).first
+      raise "invalid identity" unless claims["nonce"] == nonce && claims["sub"] == account.uid
+      auth_time = claims["auth_time"]
+      raise "stale authentication" if auth_time && (!auth_time.is_a?(Numeric) || auth_time < started || auth_time > Time.now.to_i + 60)
+    rescue StandardError
+      halt 401, JSON.generate(error: "reauth_failed")
+    end
+
+    def complete_reauth(challenge, secret, identity)
+      url = settings.reauth_callback_url
+      request = Net::HTTP::Post.new(url)
+      request["Authorization"] = "Bearer #{settings.login_handoff_secret}"
+      request["Content-Type"] = "application/json"
+      request.body = JSON.generate(challenge: challenge, secret: secret,
+                                   provider: identity[:provider], providerUserId: identity[:providerUserId])
+      result = Net::HTTP.start(url.host, url.port, use_ssl: url.scheme == "https",
+                               open_timeout: 3, read_timeout: 5) { |http| http.request(request) }
+      halt 401, JSON.generate(error: "reauth_failed") unless result.is_a?(Net::HTTPNoContent)
+    rescue Timeout::Error, IOError, SystemCallError, SocketError
+      halt 502, JSON.generate(error: "reauth_unavailable")
+    end
+
     def create_login_handoff(identity)
       handoff_url = settings.login_handoff_url
       handoff_request = Net::HTTP::Post.new(handoff_url)
@@ -59,6 +96,18 @@ class AuthServer < Sinatra::Base
     )
   end
 
+  post "/auth/reauth/start" do
+    halt 403 unless Rack::Protection::AuthenticityToken.new(nil).accepts?(request.env)
+    challenge = params[:challenge].to_s
+    halt 400, JSON.generate(error: "invalid_challenge") unless LOGIN_CODE_FORMAT.match?(challenge)
+    halt 400, JSON.generate(error: "missing_browser_proof") if request.cookies["hypertube_reauth"].to_s.empty?
+    session.delete("omniauth.state")
+    session["hypertube.reauth_challenge"] = challenge
+    session["hypertube.reauth_started"] = Time.now.to_i
+    session["hypertube.reauth_proof"] = request.cookies["hypertube_reauth"]
+    JSON.generate(status: "ready")
+  end
+
   get "/auth/:provider/callback" do
     provider_account = request.env["omniauth.auth"]
     provider = settings.providers[provider_account&.provider]
@@ -73,6 +122,13 @@ class AuthServer < Sinatra::Base
       email: provider_account.info.email.to_s.strip[0, 254],
       proofHash: Digest::SHA256.hexdigest(browser_proof)
     }
+    challenge = request.env["rack.session"]&.delete("hypertube.reauth_challenge")
+    if challenge
+      verify_google_reauth(provider_account) if provider.fetch(:id) == "google"
+      complete_reauth(challenge, session.delete("hypertube.reauth_proof").to_s, identity)
+      request.env["hypertube.authenticated_callback"] = true
+      return JSON.generate(status: "verified")
+    end
     login_code = create_login_handoff(identity.transform_values { |value| value.empty? ? nil : value })
 
     response.delete_cookie("hypertube_login_proof", path: LOGIN_COMPLETE_PATH)

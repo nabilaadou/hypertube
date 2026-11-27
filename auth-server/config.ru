@@ -36,6 +36,7 @@ OmniAuth.configure do |config|
   config.allowed_hosts = [auth_base_url.host]
   config.logger = Logger.new(File::NULL)
   config.on_failure do |request_env|
+    AuthServer.clear_reauth_session(request_env["rack.session"])
     error_type = request_env["omniauth.error.type"]
     reason = error_type == :access_denied ? "cancelled" : "sign_in_failed"
     [400, { "content-type" => "application/json", "cache-control" => "no-store",

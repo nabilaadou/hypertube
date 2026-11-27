@@ -16,6 +16,7 @@ $jwk = JWT::JWK.new($key.public_key, kid: "test-key").export
 $mode = nil
 $nonce = nil
 $verified = 0
+$handoffs = 0
 
 module FakeProvider
   def fetch_access_token
@@ -54,6 +55,11 @@ AuthServer.class_eval do
   def complete_reauth(_challenge, _secret, _identity)
     $verified += 1
   end
+
+  def create_login_handoff(_identity)
+    $handoffs += 1
+    "7d87e5dc-cf71-421f-9e7c-853155898d67"
+  end
 end
 
 request = Rack::MockRequest.new(app)
@@ -81,6 +87,7 @@ end
   raise "provider start failed #{provider.status}" unless provider.status == 302
   cookie = session_cookie(provider, cookie)
   query = URI.decode_www_form(URI(provider["location"]).query).to_h
+  raise "missing fresh authentication request" unless query.fetch("max_age") == "0"
   $nonce = query.fetch("nonce")
   raise "missing auth_time request" unless JSON.parse(query.fetch("claims")).dig("id_token", "auth_time", "essential")
   callback = request.get("#{base}/auth/google_oauth2/callback?#{URI.encode_www_form(code: 'test', state: (mode == :wrong_state ? 'wrong' : query.fetch('state')))}",
@@ -95,5 +102,19 @@ end
              end
   raise "#{mode}: status #{callback.status}, expected #{expected}" unless callback.status == expected
   raise "#{mode}: wrong callback count" unless $verified == (expected == 200 ? 1 : 0)
+  if mode == :stale || mode == :bad_signature
+    cookie = session_cookie(callback, cookie)
+    normal = request.post("#{base}/auth/google_oauth2", "HTTP_HOST" => "localhost:4567", "HTTP_COOKIE" => cookie,
+                          params: { "authenticity_token" => csrf })
+    raise "normal login start failed after #{mode}" unless normal.status == 302
+    cookie = session_cookie(normal, cookie)
+    normal_query = URI.decode_www_form(URI(normal["location"]).query).to_h
+    raise "reauth options leaked after #{mode}" if normal_query.key?("max_age") || normal_query.key?("claims")
+    previous_handoffs = $handoffs
+    ordinary = request.get("#{base}/auth/google_oauth2/callback?#{URI.encode_www_form(code: 'test', state: normal_query.fetch('state'))}",
+                           "HTTP_HOST" => "localhost:4567", "HTTP_COOKIE" => cookie,
+                           "HTTP_REFERER" => "https://accounts.google.com/")
+    raise "normal login failed after #{mode}" unless ordinary.status == 200 && $handoffs == previous_handoffs + 1
+  end
   puts "#{mode}: #{callback.status}"
 end

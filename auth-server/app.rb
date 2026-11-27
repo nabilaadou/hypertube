@@ -10,6 +10,14 @@ class AuthServer < Sinatra::Base
   LOGIN_PROOF_PATH = "/api/auth/login-handoffs".freeze
   LOGIN_CODE_FORMAT = /\A[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\z/
 
+  def self.clear_reauth_session(session)
+    return unless session
+
+    %w[hypertube.reauth_challenge hypertube.reauth_proof hypertube.reauth_started hypertube.reauth_nonce].each do |key|
+      session.delete(key)
+    end
+  end
+
   set :show_exceptions, false
   set :dump_errors, false
   set :static, false
@@ -111,8 +119,10 @@ class AuthServer < Sinatra::Base
   get "/auth/:provider/callback" do
     provider_account = request.env["omniauth.auth"]
     provider = settings.providers[provider_account&.provider]
-    halt 404 unless provider&.fetch(:enabled) && provider_account.provider == params[:provider] &&
-                    !provider_account.uid.to_s.empty?
+    unless provider&.fetch(:enabled) && provider_account.provider == params[:provider] && !provider_account.uid.to_s.empty?
+      AuthServer.clear_reauth_session(request.env["rack.session"])
+      halt 404
+    end
 
     browser_proof = SecureRandom.hex(32)
     identity = {
@@ -124,10 +134,14 @@ class AuthServer < Sinatra::Base
     }
     challenge = request.env["rack.session"]&.delete("hypertube.reauth_challenge")
     if challenge
-      verify_google_reauth(provider_account) if provider.fetch(:id) == "google"
-      complete_reauth(challenge, session.delete("hypertube.reauth_proof").to_s, identity)
-      request.env["hypertube.authenticated_callback"] = true
-      return JSON.generate(status: "verified")
+      begin
+        verify_google_reauth(provider_account) if provider.fetch(:id) == "google"
+        complete_reauth(challenge, session["hypertube.reauth_proof"].to_s, identity)
+        request.env["hypertube.authenticated_callback"] = true
+        return JSON.generate(status: "verified")
+      ensure
+        AuthServer.clear_reauth_session(session)
+      end
     end
     login_code = create_login_handoff(identity.transform_values { |value| value.empty? ? nil : value })
 
